@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { readSave } from '../src/lib/save';
-import { buildSnapshot } from '../src/lib/career/snapshot';
+import { buildSnapshot, type CareerSnapshot } from '../src/lib/career/snapshot';
 import { buildTips } from '../src/lib/career/tips';
 import { ageAt, fromGameDays, seasonOf, fromYmd } from '../src/lib/career/dates';
 
@@ -17,7 +17,8 @@ describe('datas', () => {
 
 const DIR = process.env.FC27_SAVES_DIR ?? join(__dirname, '..', 'saves');
 describe.skipIf(!existsSync(join(DIR, 's4.sav')))('resumo da Home com save real', () => {
-  const s = buildSnapshot(readSave(new Uint8Array(readFileSync(join(DIR, 's4.sav')))), new Date('2026-10-31T00:00:00Z'));
+  let s: CareerSnapshot;
+  beforeAll(() => { s = buildSnapshot(readSave(new Uint8Array(readFileSync(join(DIR, 's4.sav')))), new Date('2026-10-31T00:00:00Z')); }, 60_000);
   it('monta clube, data, elenco e tabelas', () => {
     expect(s.club).toMatchObject({ id: 13, name: 'Newcastle United', leagueName: 'England Premier League', rivalName: 'Sunderland' });
     expect(s.gameDate).toBe(20260808);
