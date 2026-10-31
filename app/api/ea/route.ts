@@ -37,6 +37,17 @@ async function loadIndex() {
 
 export async function POST(req: Request) {
   const { ids = [], teamIds = [] } = (await req.json()) as { ids?: number[]; teamIds?: number[] };
+  return lookup(ids, teamIds);
+}
+
+/** Diagnóstico pelo navegador: /api/ea?ids=158023,231747&teams=13 */
+export async function GET(req: Request) {
+  const q = new URL(req.url).searchParams;
+  const list = (k: string) => (q.get(k) ?? '').split(',').map(Number).filter(Boolean);
+  return lookup(list('ids'), list('teams'));
+}
+
+async function lookup(ids: number[], teamIds: number[]) {
   try {
     index ??= loadIndex().catch((e) => { index = null; throw e; });
     const map = await index;
@@ -49,7 +60,8 @@ export async function POST(req: Request) {
     const crests: EaLookup['crests'] = {};
     for (const it of map.values()) if (it.team && want.has(it.team.id)) crests[it.team.id] = it.team.imageUrl;
     return NextResponse.json({ players, crests, available: true } satisfies EaLookup);
-  } catch {
+  } catch (e) {
+    console.error('Falha ao ler a API da EA:', e);
     return NextResponse.json({ players: {}, crests: {}, available: false } satisfies EaLookup);
   }
 }
