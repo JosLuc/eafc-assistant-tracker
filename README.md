@@ -24,3 +24,16 @@ npm run inspect -- ./saves/s4.sav
 Os saves nunca entram no repositório (`saves/` está no `.gitignore`). Para os testes com saves reais, coloque
 `s1.sav` (antes do jogo 1), `s2.sav` (depois do jogo 1), `s3.sav` (renovação aceita) e `s4.sav` (contratação)
 em `./saves` ou aponte `FC27_SAVES_DIR`.
+
+## Fase 2: app web e Home (onda 1)
+
+```bash
+npm run dev    # http://localhost:3000, arraste o save CmMgrC… na tela
+```
+
+- O save é lido num Web Worker no navegador (`src/workers/save.worker.ts`) e vira um resumo de ~20 KB
+  (`src/lib/career/snapshot.ts`), guardado no IndexedDB do navegador.
+- Nomes, fotos e escudos vêm da API pública de ratings da EA, pela rota `app/api/ea` (cache de 7 dias).
+  Sem resposta da EA, a Home mostra `#id`.
+- Widgets da onda 1: Dica do auxiliar, Calendário (data do jogo), Posição na liga, Força do time, Escalação,
+  Último jogo, Elenco, Contratos, Salários, Clube e Bolas paradas. "Próximo jogo" aparece vazio até a onda 2.
