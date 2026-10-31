@@ -43,9 +43,47 @@ describe.skipIf(!existsSync(join(DIR, 's4.sav')))('resumo da Home com save real'
     expect(s.squad.filter((p) => p.yellows).map((p) => p.id).sort()).toEqual([251809, 255069, 257470]);
     expect(s.transfers.find((t) => t.playerId === 74463)).toMatchObject({ fromName: 'FC Barcelona', toId: 13, fee: 37_500_000, wage: 30_500 });
   });
+  it('lê finanças, papéis, moral e técnico', () => {
+    expect(s.finances).toEqual({ initialBudget: 1_129_626_816, currentBudget: 1_087_579_956, spentOnPlayers: 38_620_960, wageRaises: 2_843_500 });
+    expect(s.squad.filter((p) => p.role).length).toBe(27);
+    expect(s.morale?.average).toBeGreaterThan(50);
+    expect(s.manager).toMatchObject({ name: 'Matthias Jaissle', jobSecurity: 80, earnings: 355_000 });
+    expect(s.scorers.map((x) => x.playerId).sort()).toEqual([234824, 257470]);
+  });
+  it('lê as estatísticas da Premier League (s6: 1x1 com o Liverpool, gol do Wissa)', () => {
+    const s6 = buildSnapshot(readSave(new Uint8Array(readFileSync(join(DIR, 's6.sav')))));
+    const pl = s6.stats.find((c) => c.isLeague)!;
+    expect(pl.competition).toBe('England Premier League');
+    expect(pl.players.find((x) => x.playerId === 234824)).toMatchObject({ teamId: 13, apps: 1, minutes: 90, goals: 1, yellows: 1, avgRating: 7.8 });
+  }, 60_000);
   it('gera dicas do auxiliar', () => {
     const tips = buildTips(s, (id) => `#${id}`);
     expect(tips.length).toBeGreaterThan(0);
     expect(tips.every((t) => t.text.length > 10)).toBe(true);
   });
+});
+
+describe.skipIf(!existsSync(join(DIR, 'b.sav')))('outra carreira (América → Pisa)', () => {
+  it('confere com o CM Tracker', () => {
+    const a = buildSnapshot(readSave(new Uint8Array(readFileSync(join(DIR, 'a.sav')))));
+    expect(a.morale).toMatchObject({ average: 72, teamPerformance: 83, playerPerformance: 55, contract: 79 });
+    expect(a.manager?.jobSecurity).toBe(80);
+    const b = buildSnapshot(readSave(new Uint8Array(readFileSync(join(DIR, 'b.sav')))));
+    expect(b.club.name).toBe('Pisa');
+    expect([1, 2, 3, 4, 5].map((r) => b.squad.filter((p) => p.role === r).length)).toEqual([4, 13, 4, 5, 0]);
+    expect(b.manager).toMatchObject({ wage: 1000, earnings: 720_000, jobSecurity: 28, biggestWin: { score: '4-1' } });
+    expect(b.manager?.history?.[0]).toMatchObject({ teamName: 'América', played: 44, won: 21, drawn: 7, lost: 16, goalsFor: 72, goalsAgainst: 63, points: 70, position: 9 });
+    expect(Object.values(b.names)).toContain('Ichem Ferrah');
+    // Estatísticas da temporada (CM Tracker: Loyola 38 jogos, Scuffet 13 sem sofrer gol, Ferrah 7,26, Buffon 7 assist.).
+    const serieB = b.stats.find((c) => c.isLeague)!;
+    const stat = (id: number) => b.stats.filter((c) => !c.competition.includes('pré')).flatMap((c) => c.players).filter((x) => x.playerId === id);
+    const sum = (id: number, k: 'apps' | 'goals' | 'assists' | 'cleanSheets' | 'potm') => stat(id).reduce((a, x) => a + x[k], 0);
+    expect(serieB.competition).toBe('Italy Serie B');
+    expect([...serieB.players].sort((x, y) => y.goals - x.goals).slice(0, 3).map((x) => [x.playerId, x.goals])).toEqual([[230737, 21], [220165, 20], [279491, 19]]);
+    expect(sum(71230, 'apps')).toBe(38);
+    expect(sum(220048, 'cleanSheets')).toBe(13);
+    expect(sum(77379, 'assists')).toBe(7);
+    expect(sum(77379, 'potm')).toBe(6);
+    const f = stat(279491); expect((f.reduce((a, x) => a + x.avgRating * x.apps, 0) / sum(279491, 'apps')).toFixed(2)).toBe('7.26');
+  }, 60_000);
 });

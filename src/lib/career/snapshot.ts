@@ -18,17 +18,27 @@ export interface SquadPlayer {
   injuryReturn?: number;
   /** Cartões amarelos acumulados e jogos de suspensão (módulo susm). */
   yellows?: number; banGames?: number;
+  /** Papel no elenco: 1 Crucial, 2 Importante, 3 Rodízio, 4 Esporádico, 5 Promessa (módulo pstm). */
+  role?: number;
+  /** Moral 0–100 e seus componentes (módulo pllm). */
+  morale?: number; playingTime?: number;
 }
+export interface YouthPlayer { id: number; age: number; pos: number; ovr: number; pot: number }
+export interface Scout { name: string; nationality: number; experience: number; knowledge: number; region: number }
+export interface SeasonRecord { teamId: number; teamName: string; league: string; objective: number; played: number; won: number; drawn: number; lost: number; goalsFor: number; goalsAgainst: number; points: number; position: number }
 export interface Match {
   date: number; time: number; competitionId: number; competition: string; round: number;
   homeId: number | null; awayId: number | null; homeName: string; awayName: string;
   homeGoals: number | null; awayGoals: number | null; played: boolean;
 }
 export interface Transfer { date: number; playerId: number; fromId: number; fromName: string; toId: number; toName: string; fee: number; wage: number }
+/** Números de um jogador numa competição da temporada. avgRating = nota média (ex.: 7.26). */
+export interface StatLine { playerId: number; teamId: number; apps: number; minutes: number; goals: number; assists: number; cleanSheets: number; potm: number; yellows: number; avgRating: number }
+export interface CompetitionStats { competitionId: number; competition: string; isLeague: boolean; players: StatLine[] }
 export interface TableRow { teamId: number; name: string; played: number; won: number; drawn: number; lost: number; gf: number; ga: number; points: number }
 export interface Standing { stageId: number; title: string; isLeague: boolean; rows: TableRow[] }
 export interface CareerSnapshot {
-  version: 2;
+  version: 3;
   slotName: string;
   importedAt: string;
   gameDate: number; // aaaammdd
@@ -41,7 +51,20 @@ export interface CareerSnapshot {
     captainId: number; penaltyTakerId: number; freeKickTakerId: number; cornerTakerId: number;
     leagueTitles: number; domesticCups: number; prevPosition: number;
   };
-  manager: { name: string; joined: number } | null;
+  manager: {
+    name: string; joined: number; wage?: number; earnings?: number; jobSecurity?: number;
+    history?: SeasonRecord[];
+    biggestWin?: { score: string; opponent: string; date: number };
+    worstStreak?: number;
+  } | null;
+  /** Nomes que o save guarda (jogadores gerados pelo jogo: base e regens). Reais vêm da EA. */
+  names: Record<number, string>;
+  finances: { initialBudget: number; currentBudget: number; spentOnPlayers: number; wageRaises: number } | null;
+  morale: { average: number; teamPerformance: number; playerPerformance: number; contract: number; playingTime: number } | null;
+  /** Gols do seu time na temporada, por jogador (histórico de jogos do técnico, inclui amistosos). */
+  scorers: { playerId: number; goals: number }[];
+  youth: YouthPlayer[];
+  scouts: Scout[];
   squad: SquadPlayer[];
   standings: Standing[];
   lastLineup: { playerId: number; minutes: number }[];
@@ -50,6 +73,8 @@ export interface CareerSnapshot {
   matches: Match[];
   /** Transferências registradas no save envolvendo qualquer clube (o jogo guarda só as recentes). */
   transfers: Transfer[];
+  /** Estatísticas da temporada por competição: todo o seu elenco e, na liga, os líderes dos outros times. */
+  stats: CompetitionStats[];
 }
 
 const num = (r: Row | undefined, k: string) => (r?.[k] as number | undefined) ?? 0;
@@ -153,12 +178,71 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
     if (c) { p.yellows = c.yellows; p.banGames = c.banGames; }
   }
 
+  // Papéis e moral do elenco.
+  if (save.roles?.teamId === clubId) for (const p of squad) p.role = save.roles.roles.get(p.id);
+  let morale: CareerSnapshot['morale'] = null;
+  if (save.morale?.teamId === clubId && save.morale.players.length) {
+    const ms = save.morale.players;
+    const byId = new Map(ms.map((x) => [x.playerId, x]));
+    for (const p of squad) { const x = byId.get(p.id); if (x) { p.morale = x.morale; p.playingTime = x.playingTime; } }
+    const avg = (f: (x: (typeof ms)[number]) => number) => Math.round(ms.reduce((a, x) => a + f(x), 0) / ms.length);
+    morale = { average: avg((x) => x.morale), teamPerformance: avg((x) => x.teamPerformance), playerPerformance: avg((x) => x.playerPerformance), contract: avg((x) => x.contract), playingTime: avg((x) => x.playingTime) };
+  }
+
+  // Nomes guardados no save (gerados pelo jogo). Os ids de nome no banco vêm calibrados com −1.
+  const names: Record<number, string> = {};
+  const nameOf = (id: number) => {
+    const person = save.names.people.get(id);
+    if (person) return person.common || `${person.first} ${person.last}`.trim();
+    const p = players.get(id);
+    const first = save.names.dict.get(num(p, 'firstnameid') + 1), last = save.names.dict.get(num(p, 'lastnameid') + 1);
+    return first && last ? `${first} ${last}` : undefined;
+  };
+
+  // Base.
+  const youth: YouthPlayer[] = (t.career_youthplayers ?? []).map((y) => {
+    const id = num(y, 'playerid'), p = players.get(id);
+    return { id, age: ageAt(fromGameDays(num(p, 'birthdate')), today), pos: num(p, 'preferredposition1'), ovr: num(p, 'overallrating'), pot: num(p, 'potential') };
+  }).filter((y) => y.ovr > 0).sort((a, b) => b.pot - a.pot);
+  const scouts: Scout[] = (t.career_scouts ?? []).map((x) => ({
+    name: `${str(x, 'firstname')} ${str(x, 'lastname')}`.trim(), nationality: num(x, 'nationality'),
+    experience: num(x, 'experience'), knowledge: num(x, 'knowledge'), region: num(x, 'regionid'),
+  }));
+  for (const id of [...squad.map((p) => p.id), ...youth.map((y) => y.id), ...save.transfers.map((x) => x.playerId)]) {
+    const n = nameOf(id); if (n) names[id] = n;
+  }
+
+  // Histórico do técnico.
+  const mh = save.managerHistory?.clubId === clubId ? save.managerHistory : null;
+  const leagueName = (id: number) => cleanLeague(str((t.leagues ?? []).find((r) => num(r, 'leagueid') === id), 'leaguename')) || `Liga ${id}`;
+  const teamByKey = new Map<number, number>();
+  for (const id of teams.keys()) if (!teamByKey.has((id + 1) & 0xffff)) teamByKey.set((id + 1) & 0xffff, id);
+  const seasonStart = seasonOf(today).start * 10000 + 701;
+  const official = mh?.matches ?? [];
+  let biggestWin: NonNullable<CareerSnapshot['manager']>['biggestWin'];
+  let best = -1, streak = 0, worstStreak = 0;
+  for (const m of official) {
+    const [mine, theirs] = m.home ? [m.homeGoals, m.awayGoals] : [m.awayGoals, m.homeGoals];
+    if (mine - theirs > best && mine > theirs) {
+      best = mine - theirs;
+      const opp = teamByKey.get(m.opponentKey);
+      biggestWin = { score: `${mine}-${theirs}`, opponent: opp != null ? teamName(opp) : 'adversário', date: m.date };
+    }
+    streak = mine < theirs ? streak + 1 : 0; worstStreak = Math.max(worstStreak, streak);
+  }
+  const goals = new Map<number, number>();
+  for (const m of official) if (m.date >= seasonStart) for (const sc of m.scorers) goals.set(sc.playerId, (goals.get(sc.playerId) ?? 0) + sc.goals);
+  const scorers = [...goals].map(([playerId, g]) => ({ playerId, goals: g })).sort((a, b) => b.goals - a.goals);
+
+  const stats = competitionStats(save, clubId, matches, rowTeam);
+  for (const c of stats) for (const x of c.players) if (!names[x.playerId]) { const n = nameOf(x.playerId); if (n) names[x.playerId] = n; }
+
   const mgr = (t.manager ?? []).find((m) => num(m, 'teamid') === clubId);
   const lineup = save.lineups.find((l) => l.teamId === clubId);
   const squadIds = new Set(squad.map((p) => p.id));
 
   return {
-    version: 2,
+    version: 3,
     slotName: save.slotName,
     importedAt: importedAt.toISOString(),
     gameDate,
@@ -175,7 +259,14 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
       leagueTitles: num(team, 'leaguetitles'), domesticCups: num(team, 'domesticcups'),
       prevPosition: num(ltl, 'previousyeartableposition'),
     },
-    manager: mgr ? { name: str(mgr, 'commonname') || `${str(mgr, 'firstname')} ${str(mgr, 'surname')}`.trim(), joined: toYmd(fromGameDays(num(mgr, 'managerjointeamdate'))) } : null,
+    manager: mgr ? {
+      name: str(mgr, 'commonname') || `${str(mgr, 'firstname')} ${str(mgr, 'surname')}`.trim(),
+      joined: mh && mh.joined > 20100101 ? mh.joined : toYmd(fromGameDays(num(mgr, 'managerjointeamdate'))),
+      wage: mh?.wage, earnings: mh?.earnings, jobSecurity: mh?.seasons.at(-1)?.jobSecurity,
+      history: mh?.seasons.map((x) => ({ ...x, teamName: teamName(x.teamId), league: leagueName(x.leagueId) })),
+      biggestWin, worstStreak,
+    } : null,
+    names, finances: save.finances, morale, scorers, youth, scouts,
     squad,
     standings,
     lastLineup: lineup?.players.map((p) => ({ playerId: p.playerId, minutes: p.minutes })) ?? [],
@@ -186,7 +277,100 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
     transfers: save.transfers
       .map((x) => ({ date: x.date, playerId: x.playerId, fromId: x.fromTeam, fromName: teamName(x.fromTeam), toId: x.toTeam, toName: teamName(x.toTeam), fee: x.fee, wage: x.wage }))
       .sort((a, b) => b.date - a.date),
+    stats,
   };
+}
+
+/**
+ * Agrupa os registros de estatística do fcem por competição.
+ * A região guarda, competição por competição, um bloco de registros por time. A competição de cada bloco
+ * do seu time sai dos times vizinhos: é aquela (entre as dos seus jogos) que tem mais desses times.
+ * Blocos que não batem com nenhuma competição oficial (amistosos) ficam de fora.
+ */
+function competitionStats(save: CareerSave, clubId: number, matches: Match[], rowTeam: Map<number, number>): CompetitionStats[] {
+  const recs = save.playerStats;
+  if (!recs.length) return [];
+  const key = (id: number) => (id + 1) & 0xffff;
+  const clubKey = key(clubId);
+  const teamOfKey = new Map<number, number>();
+  const compTeams = new Map<number, Set<number>>();
+  for (const f of save.fixtures) for (const row of [f.homeRow, f.awayRow]) {
+    const id = rowTeam.get(row); if (id == null) continue;
+    teamOfKey.set(key(id), id);
+    let set = compTeams.get(f.competitionId); if (!set) compTeams.set(f.competitionId, (set = new Set()));
+    set.add(key(id));
+  }
+  const myComps = [...new Set(matches.map((m) => m.competitionId))];
+  const compName = new Map(matches.map((m) => [m.competitionId, m.competition]));
+
+  // Sequências de registros do mesmo time.
+  const runs: { team: number; from: number; to: number }[] = [];
+  for (let i = 0; i < recs.length; i++) {
+    const r = recs[i]!, last = runs.at(-1);
+    if (last && last.team === r.teamKey && recs[last.to]!.index === r.index - 1) last.to = i;
+    else runs.push({ team: r.teamKey, from: i, to: i });
+  }
+  const line = (r: (typeof recs)[number]): StatLine => ({
+    playerId: r.playerId, teamId: teamOfKey.get(r.teamKey) ?? (r.teamKey === clubKey ? clubId : -1),
+    apps: r.apps, minutes: r.minutes, goals: r.goals, assists: r.assists, cleanSheets: r.cleanSheets, potm: r.potm, yellows: r.yellows,
+    avgRating: r.apps ? r.ratingSum / r.apps / 10 : 0,
+  });
+  const out = new Map<number, Map<number, StatLine>>();
+  const add = (comp: number, l: StatLine) => {
+    let m = out.get(comp); if (!m) out.set(comp, (m = new Map()));
+    const x = m.get(l.playerId);
+    if (!x) { m.set(l.playerId, l); return; }
+    const apps = x.apps + l.apps;
+    m.set(l.playerId, { ...x, apps, minutes: x.minutes + l.minutes, goals: x.goals + l.goals, assists: x.assists + l.assists,
+      cleanSheets: x.cleanSheets + l.cleanSheets, potm: x.potm + l.potm, yellows: x.yellows + l.yellows,
+      avgRating: apps ? (x.avgRating * x.apps + l.avgRating * l.apps) / apps : 0 });
+  };
+  // Para cada bloco do seu time, a competição com mais times vizinhos. Se dois blocos caem na mesma,
+  // o de maior coincidência fica com ela e o outro é uma copa que o save não lista nos jogos (ex.: Coppa Italia).
+  const OTHER = -1;
+  const picks: { ri: number; comp: number; score: number }[] = [];
+  runs.forEach((run, ri) => {
+    if (run.team !== clubKey) return;
+    const near = new Set(runs.slice(Math.max(0, ri - 12), ri + 13).map((x) => x.team));
+    let best: number | undefined, score = 1;
+    for (const c of myComps) {
+      const set = compTeams.get(c); if (!set) continue;
+      let n = 0; for (const k of near) if (k !== clubKey && set.has(k)) n++;
+      if (n > score) { score = n; best = c; }
+    }
+    if (best != null) picks.push({ ri, comp: best, score });
+  });
+  const winner = new Map<number, number>();
+  for (const x of picks) if ((picks.find((y) => y.ri === winner.get(x.comp))?.score ?? -1) < x.score) winner.set(x.comp, x.ri);
+  for (const { ri, comp } of picks) {
+    const run = runs[ri]!;
+    if (winner.get(comp) !== ri) { for (let i = run.from; i <= run.to; i++) if (recs[i]!.apps > 0) add(OTHER, line(recs[i]!)); continue; }
+    const set = compTeams.get(comp)!;
+    const isLeague = set.size > 8 && matches.filter((m) => m.competitionId === comp).length > set.size;
+    // Na liga, pega o bloco inteiro (todos os times) para a artilharia; nas copas, só o seu time.
+    let a = ri, b = ri;
+    if (isLeague) {
+      const seen = new Set([clubKey]);
+      while (a > 0 && set.has(runs[a - 1]!.team) && !seen.has(runs[a - 1]!.team)) seen.add(runs[--a]!.team);
+      while (b + 1 < runs.length && set.has(runs[b + 1]!.team) && !seen.has(runs[b + 1]!.team)) seen.add(runs[++b]!.team);
+    }
+    for (let k = a; k <= b; k++) for (let i = runs[k]!.from; i <= runs[k]!.to; i++) if (recs[i]!.apps > 0) add(comp, line(recs[i]!));
+  }
+  const res: CompetitionStats[] = [];
+  for (const [comp, m] of out) {
+    const all = [...m.values()];
+    if (all.filter((x) => x.teamId === clubId).length < 5) continue; // registro solto, não é uma competição jogada
+    const set = compTeams.get(comp) ?? new Set();
+    const isLeague = set.size > 8 && matches.filter((x) => x.competitionId === comp).length > set.size;
+    // Guarda o elenco inteiro e o top 10 de cada categoria dos outros times.
+    const keep = new Set(all.filter((x) => x.teamId === clubId).map((x) => x.playerId));
+    const minApps = Math.max(1, Math.ceil(Math.max(0, ...all.map((x) => x.apps)) / 3));
+    const top = (f: (x: StatLine) => number, list = all) => [...list].sort((p, q) => f(q) - f(p)).slice(0, 10).forEach((x) => f(x) > 0 && keep.add(x.playerId));
+    top((x) => x.goals); top((x) => x.assists); top((x) => x.cleanSheets); top((x) => x.potm);
+    top((x) => x.avgRating, all.filter((x) => x.apps >= minApps));
+    res.push({ competitionId: comp, competition: comp === OTHER ? 'Copas' : compName.get(comp) ?? `Competição ${comp}`, isLeague, players: all.filter((x) => keep.has(x.playerId)) });
+  }
+  return res.sort((p, q) => Number(q.isLeague) - Number(p.isLeague));
 }
 
 const cleanLeague = (s: string) => s.replace(/\s*\(\d+\)\s*$/, '');
