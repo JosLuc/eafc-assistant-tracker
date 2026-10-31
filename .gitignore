@@ -1,0 +1,8 @@
+node_modules/
+dist/
+coverage/
+.env*
+# saves do jogo nunca vão para o repositório
+saves/
+*.sav
+CmMgrC*
