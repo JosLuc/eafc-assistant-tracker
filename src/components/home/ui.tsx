@@ -58,3 +58,17 @@ export function Bar({ label, v }: { label: string; v: number }) {
 export const money = (n: number) =>
   n >= 1e6 ? `€${(n / 1e6).toFixed(1).replace('.', ',')} mi` : n >= 1e3 ? `€${Math.round(n / 1e3)} mil` : `€${n}`;
 export const dateBr = (ymd: number) => `${String(ymd % 100).padStart(2, '0')}/${String(Math.floor(ymd / 100) % 100).padStart(2, '0')}/${Math.floor(ymd / 10000)}`;
+
+const initials = (name: string) => name.replace(/^(Jogador )?#\d+$/, '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || '?';
+
+/** Foto/escudo com reserva: se a imagem não existir ou falhar ao carregar, mostra as iniciais. */
+export function Pic({ src, name, size = 28, round = true }: { src?: string; name: string; size?: number; round?: boolean }) {
+  const [broken, setBroken] = useState(false);
+  const style = { width: size, height: size, fontSize: Math.max(9, size * 0.38) };
+  if (!src || broken)
+    return <span className={`inline-grid shrink-0 place-items-center bg-card-2 font-semibold text-muted ${round ? 'rounded-full' : 'rounded'}`} style={style}>{initials(name)}</span>;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt="" loading="lazy" onError={() => setBroken(true)} className={`shrink-0 ${round ? 'rounded-full bg-card-2 object-cover' : 'object-contain'}`} style={style} />;
+}
+
+export const timeBr = (hhmm: number) => `${String(Math.floor(hhmm / 100)).padStart(2, '0')}:${String(hhmm % 100).padStart(2, '0')}`;

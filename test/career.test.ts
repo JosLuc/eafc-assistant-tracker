@@ -32,6 +32,17 @@ describe.skipIf(!existsSync(join(DIR, 's4.sav')))('resumo da Home com save real'
     expect(pre.rows.find((r) => r.teamId === 13)).toMatchObject({ played: 2, points: 0 });
     expect(JSON.stringify(s).length).toBeLessThan(60_000);
   }, 60_000);
+  it('lê jogos, lesões, cartões e transferências', () => {
+    expect(s.standings.filter((t) => t.isLeague)).toHaveLength(1);
+    expect(s.matches).toHaveLength(41);
+    expect(s.matches[0]).toMatchObject({ date: 20260801, homeId: 13, awayName: 'Juventus', homeGoals: 1, awayGoals: 2, competition: 'Torneio de pré-temporada' });
+    expect(s.matches.filter((m) => m.competition === 'England Premier League')).toHaveLength(38);
+    expect(s.matches.find((m) => !m.played && m.date >= s.gameDate)).toMatchObject({ date: 20260808, awayName: 'Bayer 04 Leverkusen' });
+    expect(s.matches.find((m) => m.competitionId === 818)).toMatchObject({ date: 20260823, time: 1630, awayName: 'Liverpool' });
+    expect(s.squad.find((p) => p.id === 274246)).toMatchObject({ injured: true, injuryReturn: 20260824, condition: 44 });
+    expect(s.squad.filter((p) => p.yellows).map((p) => p.id).sort()).toEqual([251809, 255069, 257470]);
+    expect(s.transfers.find((t) => t.playerId === 74463)).toMatchObject({ fromName: 'FC Barcelona', toId: 13, fee: 37_500_000, wage: 30_500 });
+  });
   it('gera dicas do auxiliar', () => {
     const tips = buildTips(s, (id) => `#${id}`);
     expect(tips.length).toBeGreaterThan(0);
