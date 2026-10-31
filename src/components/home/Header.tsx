@@ -1,7 +1,7 @@
 'use client';
 import type { CareerSnapshot } from '@/lib/career/snapshot';
 import { starters } from '@/lib/career/tips';
-import { Ovr, dateBr } from './ui';
+import { Ovr, Pic, dateBr } from './ui';
 import type { Ea } from './names';
 
 export function Header({ s, ea, onUpload }: { s: CareerSnapshot; ea: Ea; onUpload: () => void }) {
@@ -11,8 +11,7 @@ export function Header({ s, ea, onUpload }: { s: CareerSnapshot; ea: Ea; onUploa
   return (
     <div className="rounded-lg border border-line bg-card p-5">
       <div className="flex flex-wrap items-center gap-4">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        {crest ? <img src={crest} alt="" className="h-16 w-16 object-contain" /> : <div className="grid h-16 w-16 place-items-center rounded-full bg-card-2 title text-2xl">{s.club.name[0]}</div>}
+        <Pic src={crest} name={s.club.name} size={64} round={false} />
         <div className="min-w-0">
           <h1 className="title text-3xl">{s.club.name}</h1>
           <p className="text-sm text-muted">

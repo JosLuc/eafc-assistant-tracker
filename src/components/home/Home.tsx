@@ -21,6 +21,10 @@ const WIDGETS: { id: string; sections: Section[]; C: (p: { s: CareerSnapshot; ea
   { id: 'calendario', sections: ['geral', 'competicoes'], C: W.Calendar },
   { id: 'proximo', sections: ['geral', 'competicoes'], C: W.NextMatch },
   { id: 'liga', sections: ['geral', 'competicoes'], C: W.LeaguePosition },
+  { id: 'resultados', sections: ['geral', 'competicoes'], C: W.Results },
+  { id: 'jogos', sections: ['competicoes'], C: W.Fixtures },
+  { id: 'lesoes', sections: ['geral', 'elenco'], C: W.Availability },
+  { id: 'transferencias', sections: ['geral', 'clube'], C: W.Transfers },
   { id: 'forca', sections: ['geral', 'elenco'], C: W.TeamPower },
   { id: 'xi', sections: ['geral', 'elenco'], C: W.StartingXI },
   { id: 'ultimo', sections: ['geral', 'competicoes', 'elenco'], C: W.LastMatch },
@@ -50,8 +54,10 @@ export function Home() {
     finally { setBusy(false); }
   }
 
-  const ids = useMemo(() => s?.squad.map((p) => p.id) ?? [], [s]);
-  const teamIds = useMemo(() => (s ? [s.club.id, ...s.standings.flatMap((t) => t.rows.map((r) => r.teamId))] : []), [s]);
+  const ids = useMemo(() => (s ? [...new Set([...s.squad.map((p) => p.id), ...s.transfers.map((t) => t.playerId)])] : []), [s]);
+  const teamIds = useMemo(() => (s ? [...new Set([s.club.id, ...s.standings.flatMap((t) => t.rows.map((r) => r.teamId)),
+    ...s.matches.flatMap((m) => [m.homeId, m.awayId]).filter((x): x is number => x != null),
+    ...s.transfers.flatMap((t) => [t.fromId, t.toId])])] : []), [s]);
   const ea = useEa(ids, teamIds);
 
   if (!snaps) return <p className="p-8 text-muted">Carregando…</p>;

@@ -5,7 +5,11 @@ import type { CareerSnapshot } from '../career/snapshot';
 /** Guarda os resumos no navegador (IndexedDB). O banco na nuvem entra numa fase seguinte. */
 const KEY = 'fc27:snapshots';
 export async function loadSnapshots(): Promise<CareerSnapshot[]> {
-  try { return ((await get(KEY)) as CareerSnapshot[] | undefined) ?? []; } catch { return []; }
+  try {
+    const all = ((await get(KEY)) as CareerSnapshot[] | undefined) ?? [];
+    // Resumos antigos (versão 1) não tinham jogos nem transferências: completa com listas vazias.
+    return all.map((s) => ({ ...s, matches: s.matches ?? [], transfers: s.transfers ?? [] }));
+  } catch { return []; }
 }
 export async function addSnapshot(s: CareerSnapshot) {
   const all = await loadSnapshots();

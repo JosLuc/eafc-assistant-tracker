@@ -3,6 +3,10 @@ import { findDatabases, readTables, readRows, type Row, type TableDef } from './
 import { calibrate } from './calibrate';
 import { readStandings, type StandingRow } from './modules/standings';
 import { readLineups, type TeamLineup } from './modules/lineups';
+import { readFixtures, type RawFixture } from './modules/fixtures';
+import { readFitness, type Fitness } from './modules/fitness';
+import { readCards, type CardRecord } from './modules/cards';
+import { readTransfers, type TransferRecord } from './modules/transfers';
 
 export interface CareerSave {
   slotName: string;
@@ -11,6 +15,10 @@ export interface CareerSave {
   userTeamId: number | null;
   standings: Map<number, StandingRow[]>;
   lineups: TeamLineup[];
+  fixtures: RawFixture[];
+  fitness: Fitness[];
+  cards: CardRecord[];
+  transfers: TransferRecord[];
   container: SaveContainer;
 }
 
@@ -29,12 +37,20 @@ export function readSave(file: Uint8Array): CareerSave {
   const teamIds = new Set((tables.teams ?? []).map((r) => r.teamid as number));
   const fcem = moduleBytes(container, 'fcem');
   const hstm = moduleBytes(container, 'hstm');
+  const mod = <T,>(tag: string, read: (b: Uint8Array) => T[]): T[] => {
+    const b = moduleBytes(container, tag);
+    try { return b ? read(b) : []; } catch { return []; }
+  };
   return {
     slotName: container.slotName,
     tables,
     userTeamId: userTeam(tables),
     standings: fcem ? readStandings(fcem, (id) => teamIds.has(id)) : new Map(),
     lineups: hstm ? readLineups(hstm) : [],
+    fixtures: fcem ? readFixtures(fcem) : [],
+    fitness: mod('fitm', readFitness),
+    cards: mod('susm', readCards),
+    transfers: mod('trfm', readTransfers),
     container,
   };
 }
@@ -55,4 +71,4 @@ function userTeam(t: Record<string, Row[]>): number | null {
   return best;
 }
 
-export type { Row, TableDef, StandingRow, TeamLineup };
+export type { Row, TableDef, StandingRow, TeamLineup, RawFixture, Fitness, CardRecord, TransferRecord };

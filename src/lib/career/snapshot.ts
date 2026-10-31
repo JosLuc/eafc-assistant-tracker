@@ -12,12 +12,23 @@ export interface SquadPlayer {
   id: number; age: number; ovr: number; pot: number; pos: number; line: Line; altPos: number[];
   slot: number; jersey: number; wage: number; value?: number; contractUntil: number; joined: number;
   foot: number; skillMoves: number; weakFoot: number; nationality: number; form: number; injured: boolean;
-
+  /** Condição física 0–100 (módulo fitm). */
+  condition?: number;
+  /** Lesão: data prevista de volta (aaaammdd). */
+  injuryReturn?: number;
+  /** Cartões amarelos acumulados e jogos de suspensão (módulo susm). */
+  yellows?: number; banGames?: number;
 }
+export interface Match {
+  date: number; time: number; competitionId: number; competition: string; round: number;
+  homeId: number | null; awayId: number | null; homeName: string; awayName: string;
+  homeGoals: number | null; awayGoals: number | null; played: boolean;
+}
+export interface Transfer { date: number; playerId: number; fromId: number; fromName: string; toId: number; toName: string; fee: number; wage: number }
 export interface TableRow { teamId: number; name: string; played: number; won: number; drawn: number; lost: number; gf: number; ga: number; points: number }
 export interface Standing { stageId: number; title: string; isLeague: boolean; rows: TableRow[] }
 export interface CareerSnapshot {
-  version: 1;
+  version: 2;
   slotName: string;
   importedAt: string;
   gameDate: number; // aaaammdd
@@ -35,6 +46,10 @@ export interface CareerSnapshot {
   standings: Standing[];
   lastLineup: { playerId: number; minutes: number }[];
   ratings: { playerId: number; rating: number; minutes: number; date: number }[];
+  /** Todos os jogos do clube na temporada, em ordem de data. */
+  matches: Match[];
+  /** Transferências registradas no save envolvendo qualquer clube (o jogo guarda só as recentes). */
+  transfers: Transfer[];
 }
 
 const num = (r: Row | undefined, k: string) => (r?.[k] as number | undefined) ?? 0;
@@ -79,24 +94,71 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
     })
     .sort((a, b) => b.ovr - a.ovr);
 
+  // Jogos referenciam times pela "linha" de uma classificação (rowIdx). Linhas sem time = mata-mata a definir.
+  const rowTeam = new Map<number, number>(), rowStage = new Map<number, number>();
+  for (const [stageId, rows] of save.standings) for (const r of rows) { rowTeam.set(r.rowIdx, r.teamId); rowStage.set(r.rowIdx, stageId); }
+  const clubFixtures = save.fixtures.filter((f) => rowTeam.get(f.homeRow) === clubId || rowTeam.get(f.awayRow) === clubId);
+  // A tabela da liga é a fase usada pela competição com mais jogos do clube (ex.: Premier League = 38 jogos).
+  const perComp = new Map<number, number>();
+  for (const f of clubFixtures) perComp.set(f.competitionId, (perComp.get(f.competitionId) ?? 0) + 1);
+  const mainComp = [...perComp].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const compStage = new Map<number, number>();
+  for (const f of clubFixtures) { const st = rowStage.get(f.homeRow); if (st != null && !compStage.has(f.competitionId)) compStage.set(f.competitionId, st); }
+  const leagueStage = mainComp != null ? compStage.get(mainComp) : undefined;
+  const stageTitle = (stageId: number, rows: { teamId: number }[]) => {
+    const isLeague = leagueStage != null ? stageId === leagueStage
+      : rows.length === leagueTeams.size && rows.every((r) => leagueTeams.has(r.teamId));
+    return { isLeague, title: isLeague ? cleanLeague(str(league, 'leaguename')) : rows.length <= 8 ? 'Torneio de pré-temporada' : `Competição ${stageId}` };
+  };
+
   const standings: Standing[] = [];
   for (const [stageId, rows] of save.standings) {
     if (!rows.some((r) => r.teamId === clubId)) continue;
-    const isLeague = rows.length === leagueTeams.size && rows.every((r) => leagueTeams.has(r.teamId));
+    if (leagueStage != null && stageId !== leagueStage && rows.length > 8 && ![...compStage.values()].includes(stageId)) continue; // cópias da tabela sem jogos
+    const { isLeague, title } = stageTitle(stageId, rows);
     standings.push({
-      stageId, isLeague,
-      title: isLeague ? cleanLeague(str(league, 'leaguename')) : rows.length <= 8 ? 'Torneio de pré-temporada' : `Competição ${stageId}`,
+      stageId, isLeague, title,
       rows: rows.map((r) => ({ teamId: r.teamId, name: teamName(r.teamId), played: r.played, won: r.won, drawn: r.drawn, lost: r.lost, gf: r.goalsFor, ga: r.goalsAgainst, points: r.points })),
     });
   }
   standings.sort((a, b) => Number(b.isLeague) - Number(a.isLeague));
+
+  const compTitle = (compId: number) => {
+    const st = compStage.get(compId);
+    return st != null ? stageTitle(st, save.standings.get(st) ?? []).title : `Competição ${compId}`;
+  };
+  const matches: Match[] = clubFixtures
+    .map((f) => {
+      const h = rowTeam.get(f.homeRow) ?? null, a = rowTeam.get(f.awayRow) ?? null;
+      return {
+        date: f.date, time: f.time, competitionId: f.competitionId, competition: compTitle(f.competitionId), round: f.round,
+        homeId: h, awayId: a, homeName: h != null ? teamName(h) : 'A definir', awayName: a != null ? teamName(a) : 'A definir',
+        homeGoals: f.homeGoals, awayGoals: f.awayGoals, played: f.homeGoals != null && f.awayGoals != null,
+      };
+    })
+    .sort((x, y) => x.date - y.date || x.time - y.time);
+
+  // Condição física, lesões e cartões do elenco.
+  const fit = new Map(save.fitness.map((f) => [f.playerId, f]));
+  const cards = new Map<number, { yellows: number; banGames: number }>();
+  for (const c of save.cards) {
+    if (c.teamId !== clubId) continue;
+    const x = cards.get(c.playerId) ?? { yellows: 0, banGames: 0 };
+    x.yellows += c.yellows; x.banGames += c.banGames; cards.set(c.playerId, x);
+  }
+  for (const p of squad) {
+    const f = fit.get(p.id);
+    if (f) { p.condition = f.condition; if (f.injured && f.returnDate) { p.injured = true; p.injuryReturn = f.returnDate; } }
+    const c = cards.get(p.id);
+    if (c) { p.yellows = c.yellows; p.banGames = c.banGames; }
+  }
 
   const mgr = (t.manager ?? []).find((m) => num(m, 'teamid') === clubId);
   const lineup = save.lineups.find((l) => l.teamId === clubId);
   const squadIds = new Set(squad.map((p) => p.id));
 
   return {
-    version: 1,
+    version: 2,
     slotName: save.slotName,
     importedAt: importedAt.toISOString(),
     gameDate,
@@ -120,6 +182,10 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
     ratings: (t.career_playermatchratinghistory ?? [])
       .filter((r) => squadIds.has(num(r, 'playerid')))
       .map((r) => ({ playerId: num(r, 'playerid'), rating: num(r, 'rating'), minutes: num(r, 'minsplayed'), date: num(r, 'date') })),
+    matches,
+    transfers: save.transfers
+      .map((x) => ({ date: x.date, playerId: x.playerId, fromId: x.fromTeam, fromName: teamName(x.fromTeam), toId: x.toTeam, toName: teamName(x.toTeam), fee: x.fee, wage: x.wage }))
+      .sort((a, b) => b.date - a.date),
   };
 }
 

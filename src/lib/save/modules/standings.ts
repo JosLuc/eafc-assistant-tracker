@@ -8,7 +8,7 @@ import { u16, u32 } from '../bytes';
  * (Championship 24 times / 46 jogos, fase de liga da Champions 36 times / 8 jogos).
  */
 export interface StandingRow {
-  stageId: number; slot: number; teamId: number;
+  stageId: number; rowIdx: number; slot: number; teamId: number;
   home: Record_; away: Record_; points: number;
   played: number; won: number; drawn: number; lost: number; goalsFor: number; goalsAgainst: number;
 }
@@ -18,13 +18,14 @@ export function readStandings(fcem: Uint8Array, validTeam: (id: number) => boole
   const out = new Map<number, StandingRow[]>();
   for (let i = fcem.indexOf(0xff); i !== -1 && i + 23 <= fcem.length; i = fcem.indexOf(0xff, i + 1)) {
     if (fcem[i + 1] !== 0x01) continue;
+    const rowIdx = u16(fcem, i + 2);
     const stageId = u16(fcem, i + 4);
     const teamId = u32(fcem, i + 6);
     const s = fcem.subarray(i + 10, i + 23);
     if (!stageId || !validTeam(teamId) || s[12] !== 0) continue;
     const home = rec(s, 1), away = rec(s, 6);
     const row: StandingRow = {
-      stageId, slot: s[0]!, teamId, home, away, points: s[11]!,
+      stageId, rowIdx, slot: s[0]!, teamId, home, away, points: s[11]!,
       won: home.w + away.w, drawn: home.d + away.d, lost: home.l + away.l,
       goalsFor: home.gf + away.gf, goalsAgainst: home.ga + away.ga, played: 0,
     };
