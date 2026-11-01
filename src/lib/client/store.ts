@@ -7,8 +7,11 @@ const KEY = 'fc27:snapshots';
 export async function loadSnapshots(): Promise<CareerSnapshot[]> {
   try {
     const all = ((await get(KEY)) as CareerSnapshot[] | undefined) ?? [];
-    // Resumos antigos (versão 1) não tinham jogos nem transferências: completa com listas vazias.
-    return all.map((s) => ({ ...s, matches: s.matches ?? [], transfers: s.transfers ?? [] }));
+    // Resumos de versões antigas não têm os campos novos: completa com valores vazios.
+    return all.map((s) => ({
+      ...s, matches: s.matches ?? [], transfers: s.transfers ?? [], stats: s.stats ?? [], names: s.names ?? {}, finances: s.finances ?? null,
+      morale: s.morale ?? null, scorers: s.scorers ?? [], youth: s.youth ?? [], scouts: s.scouts ?? [],
+    }));
   } catch { return []; }
 }
 export async function addSnapshot(s: CareerSnapshot) {

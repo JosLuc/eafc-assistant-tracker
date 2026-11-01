@@ -7,6 +7,12 @@ import { readFixtures, type RawFixture } from './modules/fixtures';
 import { readFitness, type Fitness } from './modules/fitness';
 import { readCards, type CardRecord } from './modules/cards';
 import { readTransfers, type TransferRecord } from './modules/transfers';
+import { readNames, type SaveNames } from './modules/names';
+import { readFinances, type Finances } from './modules/finances';
+import { readRoles, type SquadRoles } from './modules/roles';
+import { readMorale, type PlayerMorale } from './modules/morale';
+import { readManagerHistory, type ManagerHistory } from './modules/manager';
+import { readPlayerStats, type PlayerStatRecord } from './modules/playerStats';
 
 export interface CareerSave {
   slotName: string;
@@ -19,6 +25,13 @@ export interface CareerSave {
   fitness: Fitness[];
   cards: CardRecord[];
   transfers: TransferRecord[];
+  names: SaveNames;
+  finances: Finances | null;
+  roles: SquadRoles | null;
+  morale: { teamId: number; players: PlayerMorale[] } | null;
+  managerHistory: ManagerHistory | null;
+  /** Estatísticas por jogador e competição (fcem). */
+  playerStats: PlayerStatRecord[];
   container: SaveContainer;
 }
 
@@ -41,6 +54,11 @@ export function readSave(file: Uint8Array): CareerSave {
     const b = moduleBytes(container, tag);
     try { return b ? read(b) : []; } catch { return []; }
   };
+  const one = <T,>(tag: string, read: (b: Uint8Array) => T | null): T | null => {
+    const b = moduleBytes(container, tag);
+    try { return b ? read(b) : null; } catch { return null; }
+  };
+  const playerIds = new Set((tables.players ?? []).map((r) => r.playerid as number));
   return {
     slotName: container.slotName,
     tables,
@@ -51,6 +69,12 @@ export function readSave(file: Uint8Array): CareerSave {
     fitness: mod('fitm', readFitness),
     cards: mod('susm', readCards),
     transfers: mod('trfm', readTransfers),
+    names: one('ytpm', (b) => readNames(b, (id) => playerIds.has(id))) ?? { people: new Map(), dict: new Map() },
+    finances: one('tfnm', readFinances),
+    roles: one('pstm', readRoles),
+    morale: one('pllm', readMorale),
+    managerHistory: one('mhrm', (b) => readManagerHistory(b, (id) => teamIds.has(id))),
+    playerStats: (() => { try { return fcem ? readPlayerStats(fcem, playerIds) : []; } catch { return []; } })(),
     container,
   };
 }
@@ -71,4 +95,4 @@ function userTeam(t: Record<string, Row[]>): number | null {
   return best;
 }
 
-export type { Row, TableDef, StandingRow, TeamLineup, RawFixture, Fitness, CardRecord, TransferRecord };
+export type { Row, TableDef, StandingRow, TeamLineup, RawFixture, Fitness, CardRecord, TransferRecord, SaveNames, Finances, SquadRoles, PlayerMorale, ManagerHistory, PlayerStatRecord };

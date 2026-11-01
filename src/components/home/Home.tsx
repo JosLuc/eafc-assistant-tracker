@@ -10,9 +10,12 @@ import * as W from './widgets';
 const SECTIONS = [
   { id: 'geral', label: 'Visão geral' },
   { id: 'elenco', label: 'Elenco' },
-  { id: 'contratos', label: 'Contratos e salários' },
+  { id: 'lesoes', label: 'Lesões e suspensões' },
+  { id: 'contratos', label: 'Transferências e contratos' },
   { id: 'competicoes', label: 'Competições' },
-  { id: 'clube', label: 'Clube' },
+  { id: 'clube', label: 'Clube e finanças' },
+  { id: 'tecnico', label: 'Técnico e diretoria' },
+  { id: 'base', label: 'Base e olheiros' },
 ] as const;
 type Section = (typeof SECTIONS)[number]['id'];
 
@@ -21,18 +24,29 @@ const WIDGETS: { id: string; sections: Section[]; C: (p: { s: CareerSnapshot; ea
   { id: 'calendario', sections: ['geral', 'competicoes'], C: W.Calendar },
   { id: 'proximo', sections: ['geral', 'competicoes'], C: W.NextMatch },
   { id: 'liga', sections: ['geral', 'competicoes'], C: W.LeaguePosition },
-  { id: 'resultados', sections: ['geral', 'competicoes'], C: W.Results },
-  { id: 'jogos', sections: ['competicoes'], C: W.Fixtures },
-  { id: 'lesoes', sections: ['geral', 'elenco'], C: W.Availability },
-  { id: 'transferencias', sections: ['geral', 'clube'], C: W.Transfers },
   { id: 'forca', sections: ['geral', 'elenco'], C: W.TeamPower },
   { id: 'xi', sections: ['geral', 'elenco'], C: W.StartingXI },
+  { id: 'moral', sections: ['geral', 'elenco'], C: W.SquadMorale },
+  { id: 'resultados', sections: ['geral', 'competicoes'], C: W.Results },
+  { id: 'lesoes', sections: ['geral', 'lesoes'], C: W.Availability },
   { id: 'ultimo', sections: ['geral', 'competicoes', 'elenco'], C: W.LastMatch },
-  { id: 'elenco', sections: ['geral', 'elenco'], C: W.SquadOverview },
-  { id: 'contratos', sections: ['geral', 'contratos'], C: W.Contracts },
-  { id: 'salarios', sections: ['geral', 'contratos'], C: W.Wages },
-  { id: 'clube', sections: ['geral', 'clube'], C: W.Club },
-  { id: 'bolas', sections: ['geral', 'elenco', 'clube'], C: W.SetPieces },
+  { id: 'financas', sections: ['geral', 'clube'], C: W.ClubFinances },
+  { id: 'cargo', sections: ['geral', 'tecnico'], C: W.JobSecurity },
+  { id: 'elenco', sections: ['elenco'], C: W.SquadOverview },
+  { id: 'destaques', sections: ['geral', 'elenco'], C: W.SeasonLeaders },
+  { id: 'artilharia', sections: ['competicoes'], C: W.GoldenBoot },
+  { id: 'papeis', sections: ['elenco', 'contratos'], C: W.SquadRoles },
+  { id: 'bolas', sections: ['elenco'], C: W.SetPieces },
+  { id: 'cartoes', sections: ['lesoes'], C: W.Discipline },
+  { id: 'transferencias', sections: ['contratos'], C: W.Transfers },
+  { id: 'contratos', sections: ['contratos'], C: W.Contracts },
+  { id: 'salarios', sections: ['contratos'], C: W.Wages },
+  { id: 'jogos', sections: ['competicoes'], C: W.Fixtures },
+  { id: 'clube', sections: ['clube'], C: W.Club },
+  { id: 'cv', sections: ['tecnico'], C: W.ManagerCV },
+  { id: 'historico', sections: ['tecnico'], C: W.SeasonHistory, wide: true },
+  { id: 'base', sections: ['base'], C: W.YouthAcademy },
+  { id: 'olheiros', sections: ['base'], C: W.ScoutStaff },
 ];
 
 export function Home() {
@@ -54,11 +68,11 @@ export function Home() {
     finally { setBusy(false); }
   }
 
-  const ids = useMemo(() => (s ? [...new Set([...s.squad.map((p) => p.id), ...s.transfers.map((t) => t.playerId)])] : []), [s]);
+  const ids = useMemo(() => (s ? [...new Set([...s.squad.map((p) => p.id), ...s.transfers.map((t) => t.playerId), ...s.youth.map((y) => y.id), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.playerId))])] : []), [s]);
   const teamIds = useMemo(() => (s ? [...new Set([s.club.id, ...s.standings.flatMap((t) => t.rows.map((r) => r.teamId)),
     ...s.matches.flatMap((m) => [m.homeId, m.awayId]).filter((x): x is number => x != null),
-    ...s.transfers.flatMap((t) => [t.fromId, t.toId])])] : []), [s]);
-  const ea = useEa(ids, teamIds);
+    ...s.transfers.flatMap((t) => [t.fromId, t.toId]), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.teamId))])] : []), [s]);
+  const ea = useEa(ids, teamIds, s?.names);
 
   if (!snaps) return <p className="p-8 text-muted">Carregando…</p>;
   if (!s || uploading) return <main className="p-4 pt-16"><Upload onFile={onFile} busy={busy} error={error} onCancel={s ? () => setUploading(false) : undefined} /></main>;
