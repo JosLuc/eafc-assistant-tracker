@@ -47,9 +47,9 @@ Para fechar estes, preciso comparar com a tela do jogo (print) ou com um save ti
 | Módulo | O que já sei | Onde muda |
 |---|---|---|
 | stvm | Histórico de cada jogador por clube (3.886 jogadores; campos em bits de tamanho variável) | só entre temporadas/transferências (igual antes e depois do jogo da Premier) |
-| psrm | 6 listas de jogadores da mesma liga do clube (86, 40…). Provável busca de olheiros / jogadores recomendados | cresce na temporada |
+| psrm | 6 listas de jogadores da mesma liga do clube (49, 40…), cada um com uma marca de tamanho variável (0 ou 1 + valor). Provável busca de olheiros / jogadores recomendados | cresce na temporada |
 | jbom | 836 clubes, registros de 24 B (teamid, nota 41–90, 14 vagas vazias); no fim da temporada aparecem ofertas de emprego para técnicos. Provável mercado de técnicos | fim da temporada |
-| intm | Seleções e jogos internacionais (132 jogadores no fim da temporada) | data FIFA |
+| intm | Modo seleção do técnico. Como você não treina seleção, quase tudo vem vazio (ff): só os nomes das competições internacionais (C1991, C2136, amistosos). Igual entre os saves do Newcastle | só se treinar uma seleção |
 | tskm, mssm, inrm, phmg, uevm, accm, tmvm, crsm | Tarefas, mensagens, eventos inesperados, conquistas | pequenos |
 | plgm | Crescimento de todos os 21.946 jogadores do mundo | sempre |
 
