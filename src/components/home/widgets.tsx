@@ -913,3 +913,57 @@ export function Silverware({ s }: P) {
     </Card>
   );
 }
+
+/** Empréstimos: jogadores do clube emprestados e os que vieram emprestados (módulo lnsm). */
+export function Loans({ s, ea }: P) {
+  const list = s.loans ?? [];
+  const out = list.filter((l) => l.dir === 'out'), inn = list.filter((l) => l.dir === 'in');
+  const title = 'Empréstimos';
+  const help = 'Jogadores do seu clube emprestados a outros times e os que chegaram emprestados, com fim do empréstimo e opção de compra.';
+  if (!list.length) return <Card title={title} help={help} empty="Nenhum empréstimo ativo neste save." />;
+  const row = (l: (typeof list)[number]) => (
+    <li key={`${l.dir}-${l.playerId}`} className="flex items-center gap-2 py-1 text-sm">
+      <Face id={l.playerId} ea={ea} size={24} />
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-semibold">{ea.player(l.playerId).short}</div>
+        <div className="flex items-center gap-1 truncate text-[11px] text-muted">{l.dir === 'out' ? 'Para' : 'De'} <Crest id={l.clubId} name={l.clubName} ea={ea} size={12} />{l.clubName} · até {dateBr(l.until)}</div>
+      </div>
+      {l.ovr > 0 && <Ovr v={l.ovr} />}
+    </li>
+  );
+  const group = (label: string, g: typeof list, n: number) => g.length > 0 && (
+    <div className="mb-2"><div className="text-[11px] font-semibold uppercase tracking-wide text-muted">{label} · {g.length}</div><ul>{g.slice(0, n).map(row)}</ul></div>
+  );
+  return (
+    <Card title={title} help={help}
+      more={() => <Table head={['Jogador', 'Situação', 'Clube', 'Pos', 'Idade', 'OVR', 'Até', 'Opção de compra']} align={['l', 'l', 'l', 'l', 'r', 'r', 'r', 'r']}
+        rows={list.map((l) => [<PlayerName key="n" id={l.playerId} ea={ea} />, l.dir === 'out' ? 'Emprestado' : 'Recebido', l.clubName, posLabel(l.pos), l.age, <Ovr key="o" v={l.ovr} />, dateBr(l.until), l.buyOption != null ? money(l.buyOption) : '—'])} />}>
+      {group('Emprestados', out, 4)}
+      {group('Recebidos', inn, 3)}
+    </Card>
+  );
+}
+
+/** Pré-temporada: convites para torneios de verão, times e prêmio (módulo psem). */
+export function PreseasonTour({ s, ea }: P) {
+  const tours = s.preseason ?? [];
+  const help = 'Convites para torneios de pré-temporada: os times de cada torneio e o prêmio em dinheiro. Aparece na pré-temporada, quando chegam os convites.';
+  if (!tours.length) return <Card title="Pré-temporada" help={help} empty="Nenhum convite de pré-temporada neste save." />;
+  const inTour = (t: (typeof tours)[number]) => t.teams.some((x) => x.id === s.club.id);
+  return (
+    <Card title="Pré-temporada" help={help}
+      more={() => <div className="space-y-4">{tours.map((t) => (
+        <div key={t.key}><div className="mb-1 font-semibold">{t.name} · prêmio {money(t.prize)}</div>
+          <ul className="grid grid-cols-2 gap-1 text-sm">{t.teams.map((x) => <li key={x.id} className={`flex items-center gap-1 ${x.id === s.club.id ? 'font-semibold text-accent' : ''}`}><Crest id={x.id} name={x.name} ea={ea} size={14} />{x.name}</li>)}</ul></div>
+      ))}</div>}>
+      <div className="mb-2 text-xs text-muted">{tours.length} {tours.length === 1 ? 'convite' : 'convites'}</div>
+      <ul className="space-y-2">{tours.slice(0, 3).map((t) => (
+        <li key={t.key} className="rounded border border-line p-2 text-sm">
+          <div className="flex items-center justify-between font-semibold">{t.name}<span className="text-[10px] font-normal uppercase text-muted">{inTour(t) ? 'a decidir' : ''}</span></div>
+          <div className="flex justify-between text-xs text-muted"><span>Times</span><b className="text-white">{t.teams.length}</b></div>
+          <div className="flex justify-between text-xs text-muted"><span>Prêmio</span><b className="text-white">{money(t.prize)}</b></div>
+        </li>
+      ))}</ul>
+    </Card>
+  );
+}

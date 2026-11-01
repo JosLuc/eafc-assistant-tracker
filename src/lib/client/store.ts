@@ -12,7 +12,7 @@ export async function loadSnapshots(): Promise<CareerSnapshot[]> {
     return all.map((s) => ({
       ...s, matches: s.matches ?? [], transfers: s.transfers ?? [], stats: s.stats ?? [], names: s.names ?? {}, finances: s.finances ?? null,
       morale: s.morale ?? null, scorers: s.scorers ?? [], youth: s.youth ?? [], scouts: s.scouts ?? [],
-      careerKey: s.careerKey ?? '', tactic: s.tactic ?? null, worldTransfers: s.worldTransfers ?? [],
+      careerKey: s.careerKey ?? '', tactic: s.tactic ?? null, worldTransfers: s.worldTransfers ?? [], loans: s.loans ?? [], preseason: s.preseason ?? [],
       club: { ...s.club, popularity: s.club.popularity ?? 0 },
     }));
   } catch { return []; }

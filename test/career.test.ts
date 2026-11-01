@@ -103,5 +103,12 @@ describe.skipIf(!existsSync(join(DIR, 's6.sav')))('várias carreiras', () => {
     expect(nc.snaps.length).toBe(2);
     expect(nc.previous?.gameDate).toBe(s5.gameDate);
     expect(b.tactic).toMatchObject({ formation: '4-3-3', code: 'TAsX&hrbf5nQ', defensiveDepth: 25, buildUp: 0 });
+    // Empréstimos (conferido com o CM Tracker: América com 4 emprestados e 1 recebido do Wolverhampton)
+    expect(a.loans.filter((l) => l.dir === 'out').map((l) => l.playerId).sort()).toEqual([211625, 276880, 85704, 89903]);
+    expect(a.loans.filter((l) => l.dir === 'in')).toMatchObject([{ playerId: 237658, clubId: 110, until: 20270630 }]);
+    expect(b.loans.find((l) => l.playerId === 277309)).toMatchObject({ dir: 'out', buyOption: 11_100_000 });
+    // Pré-temporada: 3 convites no save do América
+    expect(a.preseason.map((t) => [t.name, t.prize, t.teams.length])).toEqual([
+      ['European International Cup', 2_500_000, 8], ['Champions Trophy', 2_000_000, 8], ['European Shield', 2_100_000, 8]]);
   }, 60_000);
 });

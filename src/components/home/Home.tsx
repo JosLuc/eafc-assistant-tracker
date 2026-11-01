@@ -17,6 +17,7 @@ const SECTIONS = [
   { id: 'clube', label: 'Clube e finanças' },
   { id: 'tecnico', label: 'Técnico e diretoria' },
   { id: 'base', label: 'Base e olheiros' },
+  { id: 'mundo', label: 'Mundo' },
 ] as const;
 type Section = (typeof SECTIONS)[number]['id'];
 
@@ -37,8 +38,9 @@ const WIDGETS: { id: string; sections: Section[]; C: (p: { s: CareerSnapshot; ea
   { id: 'tatica', sections: ['elenco'], C: W.SetPieces, wide: true },
   { id: 'lesoes', sections: ['lesoes'], C: W.Availability },
   { id: 'cartoes', sections: ['lesoes'], C: W.Discipline },
-  { id: 'mercado', sections: ['contratos'], C: W.TransferMarket },
+  { id: 'mercado', sections: ['contratos', 'mundo'], C: W.TransferMarket },
   { id: 'transferencias', sections: ['contratos'], C: W.Transfers },
+  { id: 'emprestimos', sections: ['contratos'], C: W.Loans },
   { id: 'contratos', sections: ['contratos'], C: W.Contracts },
   { id: 'artilharia', sections: ['competicoes'], C: W.GoldenBoot },
   { id: 'trofeus', sections: ['competicoes'], C: W.Silverware },
@@ -51,6 +53,7 @@ const WIDGETS: { id: string; sections: Section[]; C: (p: { s: CareerSnapshot; ea
   { id: 'historico', sections: ['tecnico'], C: W.SeasonHistory, wide: true },
   { id: 'base', sections: ['base'], C: W.YouthAcademy },
   { id: 'olheiros', sections: ['base'], C: W.ScoutStaff },
+  { id: 'pretemporada', sections: ['mundo'], C: W.PreseasonTour },
 ];
 
 export function Home() {
@@ -79,10 +82,10 @@ export function Home() {
     finally { setBusy(false); }
   }
 
-  const ids = useMemo(() => (s ? [...new Set([...s.squad.map((p) => p.id), ...s.transfers.map((t) => t.playerId), ...s.youth.map((y) => y.id), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.playerId)), ...(s.worldTransfers ?? []).map((t) => t.playerId), ...(s.tactic?.cornerSupport ?? [])])] : []), [s]);
+  const ids = useMemo(() => (s ? [...new Set([...s.squad.map((p) => p.id), ...s.transfers.map((t) => t.playerId), ...s.youth.map((y) => y.id), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.playerId)), ...(s.worldTransfers ?? []).map((t) => t.playerId), ...(s.tactic?.cornerSupport ?? []), ...(s.loans ?? []).map((l) => l.playerId)])] : []), [s]);
   const teamIds = useMemo(() => (s ? [...new Set([s.club.id, ...s.standings.flatMap((t) => t.rows.map((r) => r.teamId)),
     ...s.matches.flatMap((m) => [m.homeId, m.awayId]).filter((x): x is number => x != null),
-    ...s.transfers.flatMap((t) => [t.fromId, t.toId]), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.teamId)), ...(s.worldTransfers ?? []).flatMap((t) => [t.fromId, t.toId]), s.club.rivalId])] : []), [s]);
+    ...s.transfers.flatMap((t) => [t.fromId, t.toId]), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.teamId)), ...(s.worldTransfers ?? []).flatMap((t) => [t.fromId, t.toId]), s.club.rivalId, ...(s.loans ?? []).map((l) => l.clubId), ...(s.preseason ?? []).flatMap((t) => t.teams.map((x) => x.id))])] : []), [s]);
   const ea = useEa(ids, teamIds, s?.names);
 
   if (!snaps) return <p className="p-8 text-muted">Carregando…</p>;

@@ -83,7 +83,12 @@ export interface CareerSnapshot {
   tactic: Tactic | null;
   /** Transferências pelo mundo registradas no save (persistent_events). */
   worldTransfers: { date: number; playerId: number; fromId: number; fromName: string; toId: number; toName: string }[];
+  /** Empréstimos do clube: emprestados (out) e recebidos (in). */
+  loans: Loan[];
+  /** Convites de torneios de pré-temporada. */
+  preseason: { key: string; name: string; prize: number; teams: { id: number; name: string }[] }[];
 }
+export interface Loan { dir: 'out' | 'in'; playerId: number; clubId: number; clubName: string; until: number; buyOption: number | null; ovr: number; age: number; pos: number }
 export interface Tactic {
   name: string; formation: string; code: string; defensiveDepth: number; buildUp: number;
   /** Titulares na ordem da formação, com posição e coordenadas no campo (0..1). */
@@ -300,7 +305,23 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
     worldTransfers: (t.persistent_events ?? []).filter((e) => num(e, 'eventid') === 5 && num(e, 'player1id') > 0)
       .map((e) => ({ date: num(e, 'eventdate'), playerId: num(e, 'player1id'), fromId: num(e, 'team1id'), fromName: teamName(num(e, 'team1id')), toId: num(e, 'team2id'), toName: teamName(num(e, 'team2id')) }))
       .sort((a, b) => b.date - a.date),
+    loans: clubLoans(save, clubId, teamName, players, today),
+    preseason: save.preseason.map((x) => ({ key: x.key, name: x.name, prize: x.prize, teams: x.teams.map((id) => ({ id, name: teamName(id) })) })),
   };
+}
+
+function clubLoans(save: CareerSave, clubId: number, teamName: (id: number) => string, players: Map<number, Row>, today: Date): Loan[] {
+  const at = new Map<number, number>();
+  for (const l of save.tables.teamplayerlinks ?? []) at.set(num(l, 'playerid'), num(l, 'teamid'));
+  return save.loans.flatMap((x): Loan[] => {
+    const where = at.get(x.playerId);
+    const dir = x.ownerId === clubId ? 'out' : where === clubId ? 'in' : null;
+    if (!dir) return [];
+    const p = players.get(x.playerId);
+    const clubIdOther = dir === 'out' ? where ?? 0 : x.ownerId;
+    return [{ dir, playerId: x.playerId, clubId: clubIdOther, clubName: teamName(clubIdOther), until: x.until, buyOption: x.buyOption,
+      ovr: num(p, 'overallrating'), age: ageAt(fromGameDays(num(p, 'birthdate')), today), pos: num(p, 'preferredposition1') }];
+  });
 }
 
 /** Carreira = técnico do usuário (nome + nascimento). O mesmo técnico pode trocar de clube (ex.: América → Pisa). */
