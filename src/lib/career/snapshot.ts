@@ -94,6 +94,14 @@ export interface CareerSnapshot {
   /** Corrida dos prêmios: times candidatos das grandes ligas (posição na temporada anterior). */
   /** Orçamento de transferências de cada clube da IA: [teamid, inicial, atual, orçamento salarial]. */
   budgets: [number, number, number, number][];
+  /** Feed de notícias do jogo (chave do texto, parâmetros [tipo, valor], jogadores, data). */
+  news: { key: string; date: number | null; params: [number, number][]; players: number[] }[];
+  /** E-mails da caixa de entrada (diretoria, lesões, base, empréstimos…). */
+  emails: { key: string; date: number | null; params: [number, number][]; players: number[] }[];
+  /** Times da semana publicados no feed. */
+  teamOfWeek: { date: number | null; players: number[] }[];
+  /** Jogadores do mês publicados no feed. */
+  playerOfMonth: { date: number | null; playerId: number; teamId: number; teamName: string; competitionId: number }[];
   awardsRace: { teamId: number; teamName: string; leagueId: number; league: string; rank: number; star: number; players: number[] }[];
 }
 export interface Loan { dir: 'out' | 'in'; playerId: number; clubId: number; clubName: string; until: number; buyOption: number | null; ovr: number; age: number; pos: number }
@@ -318,6 +326,13 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
     careerKey: careerKeyOf(mgr, clubId),
     tactic: readTactic(t, clubId),
     worldTransfers: worldTransfers(save, teamName, players),
+    news: save.social.filter((x) => !x.key.startsWith('CM_SM_')),
+    emails: save.emails,
+    teamOfWeek: save.social.filter((x) => x.key.startsWith('CM_Player_Awards') && x.players.length === 11).map((x) => ({ date: x.date, players: x.players })),
+    playerOfMonth: save.social.filter((x) => x.key === 'CM_Social_POTM_UM').map((x) => {
+      const get = (...types: number[]) => x.params.find(([t]) => types.includes(t))?.[1] ?? 0;
+      return { date: x.date, playerId: get(8, 10), teamId: get(15, 16), teamName: teamName(get(15, 16)), competitionId: get(28) };
+    }),
     budgets: save.budgets.map((x) => [x.teamId, x.initial, x.current, x.wageBudget]),
     awardsRace: save.awardsRace.map((x) => ({ ...x, teamName: teamName(x.teamId), league: leagueName(x.leagueId) })),
     loans: clubLoans(save, clubId, teamName, players, today),

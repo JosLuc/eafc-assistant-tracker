@@ -18,6 +18,7 @@ import { readPreseason, type PreseasonTour } from './modules/preseason';
 import { readAwardsRace, type AwardContender } from './modules/awards';
 import { readBudgets, type ClubBudget } from './modules/budgets';
 import { readPlayerValues, readPlayerForm, type PlayerForm } from './modules/playerValues';
+import { readSocial, EMAIL, type SocialPost } from './modules/social';
 
 export interface CareerSave {
   slotName: string;
@@ -49,6 +50,10 @@ export interface CareerSave {
   playerValues: Map<number, number>;
   /** Forma e últimas notas dos jogadores do seu clube (plfm). */
   playerForm: PlayerForm[];
+  /** Feed de notícias do jogo: time da semana, jogador do mês, demissões, rumores (socm). */
+  social: SocialPost[];
+  /** Caixa de e-mails do técnico (emlm). */
+  emails: SocialPost[];
   container: SaveContainer;
 }
 
@@ -97,6 +102,8 @@ export function readSave(file: Uint8Array): CareerSave {
     preseason: mod('psem', readPreseason),
     awardsRace: mod('awrm', readAwardsRace),
     budgets: mod('budm', readBudgets),
+    social: mod('socm', (b) => readSocial(b)),
+    emails: mod('emlm', (b) => readSocial(b, EMAIL)),
     playerValues: one('pvlm', readPlayerValues) ?? new Map(),
     playerForm: mod('plfm', (b) => readPlayerForm(b, new Set((tables.teamplayerlinks ?? []).filter((l) => l.teamid === club).map((l) => l.playerid as number)))),
     container,
@@ -119,4 +126,4 @@ function userTeam(t: Record<string, Row[]>): number | null {
   return best;
 }
 
-export type { Row, TableDef, StandingRow, TeamLineup, RawFixture, Fitness, CardRecord, TransferRecord, SaveNames, Finances, SquadRoles, PlayerMorale, ManagerHistory, PlayerStatRecord, LoanRecord, PreseasonTour, AwardContender, ClubBudget, PlayerForm };
+export type { Row, TableDef, StandingRow, TeamLineup, RawFixture, Fitness, CardRecord, TransferRecord, SaveNames, Finances, SquadRoles, PlayerMorale, ManagerHistory, PlayerStatRecord, LoanRecord, PreseasonTour, AwardContender, ClubBudget, PlayerForm, SocialPost };

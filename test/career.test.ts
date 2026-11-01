@@ -118,6 +118,12 @@ describe.skipIf(!existsSync(join(DIR, 's6.sav')))('várias carreiras', () => {
     expect(s6.squad.find((p) => p.id === 255069)?.value).toBe(43_000_000);
     expect(s6.squad.find((p) => p.id === 266127)).toMatchObject({ formScore: 61, formTrend: 5 });
     expect(s6.squad.filter((p) => p.formScore != null)).toHaveLength(s6.squad.length);
+    // Feed de notícias (socm): time da semana, jogador do mês e a troca América → Pisa
+    expect(b.teamOfWeek[0]).toMatchObject({ date: 20270427, players: expect.arrayContaining([237497, 216531]) });
+    expect(b.playerOfMonth[0]).toMatchObject({ date: 20270505, playerId: 237497, teamName: 'Toluca' });
+    expect(b.news.find((x) => x.key.startsWith('CM_Social_NewManager_WasFired'))).toMatchObject({ date: 20270511 });
+    // E-mails (emlm): aviso de demissão da diretoria
+    expect(b.emails.some((x) => x.key === 'CM_Email_Board_SackWarn')).toBe(true);
     // Orçamentos dos clubes da IA (budm)
     expect(b.budgets.find((x) => x[0] === 1)).toEqual([1, 264_994_256, 164_438_612, 5_159_799]);
     // Corrida dos prêmios (igual ao CM Tracker) e técnico do mês em set/2026 no América

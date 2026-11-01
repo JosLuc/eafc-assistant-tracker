@@ -29,6 +29,11 @@ Cada save tem **80 módulos** e **41 tabelas**. A coluna "Saves" diz onde o dado
 | career_scouts, career_youthplayers | Olheiros e base | todos | Base e olheiros |
 | career_playermatchratinghistory | Nota de cada jogador por jogo | Newcastle após jogos | Destaques |
 | career_managerawards | Prêmios do técnico (técnico do mês) | Pisa | Currículo |
+| budm | Orçamento de transferências (início e atual) e salarial de todos os clubes da IA | todos (752 clubes no fim da temporada) | lido, sem card ainda |
+| pvlm | Valor de mercado de cada jogador do seu elenco | todos | lido, sem card ainda |
+| plfm | Forma 0–100, tendência e últimas 10 notas de cada jogador do seu elenco | todos | lido, sem card ainda |
+| socm | Feed de notícias: **time da semana**, **jogador do mês**, demissões e contratações de técnicos, rumores, clássicos | todos (só os posts recentes; o app acumula) | lido, sem card ainda |
+| emlm | Caixa de e-mails: aviso da diretoria, lesões, volta de lesão, base, fim de empréstimo, aposentadoria | todos | lido, sem card ainda |
 
 ## 2. Têm dados de carreira, ainda não decodificados (próximos)
 
@@ -36,13 +41,9 @@ Cada save tem **80 módulos** e **41 tabelas**. A coluna "Saves" diz onde o dado
 |---|---|---|
 | stvm | Histórico de cada jogador por clube (3.886 jogadores, registros com clube e campos de bits) | 98 KB, ~4.100 IDs de jogador |
 | psrm | Dados por jogador que crescem na temporada (forma/avaliações?) | 4,5 KB no início → 10 KB no fim, 1.122 jogadores |
-| budm | Orçamentos e finanças de todos os clubes | 5,6 KB → 29 KB, ~900 times |
-| sagm | Diretoria: valor do clube, limites de orçamento, regras de demissão | textos "ClubWorth", "BudgetThreshold", "FiredStrict" |
+| sagm | Variáveis dos eventos do jogo: limites de aviso e demissão por dificuldade (padrão: aviso 35, demissão 30), eventos inesperados | identificado |
 | jbom | Vagas e ofertas de emprego para técnicos | ~820 times |
-| socm | Feed de notícias/rede social do jogo | textos "CM_Social_Injury…", "InterestingResult_RivalMatch" |
-| emlm | Caixa de e-mails | textos "CM_Email_…" (aposentadoria, volta de suspensão) |
-| pvlm | Valores por clube/jogador | ~720 times |
-| dovm, plcm, pdrm, plfm, plvm, plmm | Dados por jogador que mudam a cada save (contratos, desenvolvimento, propostas?) | tamanhos mudam entre saves |
+| dovm, plcm, pdrm, plvm, plmm | Dados por jogador que mudam a cada save (contratos, desenvolvimento, propostas?) | tamanhos mudam entre saves |
 | plgm | Crescimento de todos os jogadores do mundo (21.946) | 326 KB |
 | intm | Seleções e convocações | "MatchTypeIntFriendly" |
 | coam, stfm, sctm | Comissão técnica, funcionários e olheiros disponíveis | nomes |
@@ -50,7 +51,7 @@ Cada save tem **80 módulos** e **41 tabelas**. A coluna "Saves" diz onde o dado
 
 ## 3. Vazios ou fixos em todos os saves
 
-- Tabelas vazias nos 8 saves: career_teamofweek (time da semana), career_playerawards (prêmios de jogadores), career_clinchedobjectives, career_scoutmission, career_youthplayerhistory. O jogo só preenche depois de eventos que ainda não aconteceram nesses saves (ex.: cerimônia de prêmios no fim da temporada).
+- Tabelas vazias nos 8 saves: career_teamofweek e career_playerawards (o time da semana e o jogador do mês ficam no feed socm), career_clinchedobjectives, career_scoutmission, career_youthplayerhistory. O jogo só preenche depois de eventos que ainda não aconteceram nesses saves (ex.: cerimônia de prêmios no fim da temporada).
 - objm (objetivos): vazio. Os objetivos da diretoria por temporada vêm do mhrm (já no app, em Histórico de temporadas).
 - Fixos (iguais nos 8 saves): vpro, ssmg, dbsg (o banco em si), cran, cobm, ctas, fixm, mahm, pmom, papm, pprs, pact, page, plsm, plrm, cdgm, sdym, tlmm, tccm, tpcm, crtm, trom, ytmg, lvsm, lsnm, lgdm, arch, eosm, polm, rivm, dctl, audd.
 
