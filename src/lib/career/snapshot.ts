@@ -57,6 +57,8 @@ export interface CareerSnapshot {
     name: string; joined: number; wage?: number; earnings?: number; jobSecurity?: number;
     history?: SeasonRecord[];
     biggestWin?: { score: string; opponent: string; date: number };
+    /** Prêmios do técnico (ex.: técnico do mês). */
+    awards?: { date: number; season: number; teamId: number; teamName: string; type: number; count: number }[];
     worstStreak?: number;
   } | null;
   /** Nomes que o save guarda (jogadores gerados pelo jogo: base e regens). Reais vêm da EA. */
@@ -87,6 +89,8 @@ export interface CareerSnapshot {
   loans: Loan[];
   /** Convites de torneios de pré-temporada. */
   preseason: { key: string; name: string; prize: number; teams: { id: number; name: string }[] }[];
+  /** Corrida dos prêmios: times candidatos das grandes ligas (posição na temporada anterior). */
+  awardsRace: { teamId: number; teamName: string; leagueId: number; league: string; rank: number; star: number; players: number[] }[];
 }
 export interface Loan { dir: 'out' | 'in'; playerId: number; clubId: number; clubName: string; until: number; buyOption: number | null; ovr: number; age: number; pos: number }
 export interface Tactic {
@@ -287,6 +291,7 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
       wage: mh?.wage, earnings: mh?.earnings, jobSecurity: mh?.seasons.at(-1)?.jobSecurity,
       history: mh?.seasons.map((x) => ({ ...x, teamName: teamName(x.teamId), league: leagueName(x.leagueId) })),
       biggestWin, worstStreak,
+      awards: (t.career_managerawards ?? []).map((r) => ({ date: toYmd(fromGameDays(num(r, 'receiveddate'))), season: num(r, 'season'), teamId: num(r, 'teamid'), teamName: teamName(num(r, 'teamid')), type: num(r, 'typeid'), count: num(r, 'count') })),
     } : null,
     names, finances: save.finances, morale, scorers, youth, scouts,
     squad,
@@ -305,6 +310,7 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
     worldTransfers: (t.persistent_events ?? []).filter((e) => num(e, 'eventid') === 5 && num(e, 'player1id') > 0)
       .map((e) => ({ date: num(e, 'eventdate'), playerId: num(e, 'player1id'), fromId: num(e, 'team1id'), fromName: teamName(num(e, 'team1id')), toId: num(e, 'team2id'), toName: teamName(num(e, 'team2id')) }))
       .sort((a, b) => b.date - a.date),
+    awardsRace: save.awardsRace.map((x) => ({ ...x, teamName: teamName(x.teamId), league: leagueName(x.leagueId) })),
     loans: clubLoans(save, clubId, teamName, players, today),
     preseason: save.preseason.map((x) => ({ key: x.key, name: x.name, prize: x.prize, teams: x.teams.map((id) => ({ id, name: teamName(id) })) })),
   };

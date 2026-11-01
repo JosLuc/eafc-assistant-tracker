@@ -54,6 +54,7 @@ const WIDGETS: { id: string; sections: Section[]; C: (p: { s: CareerSnapshot; ea
   { id: 'base', sections: ['base'], C: W.YouthAcademy },
   { id: 'olheiros', sections: ['base'], C: W.ScoutStaff },
   { id: 'pretemporada', sections: ['mundo'], C: W.PreseasonTour },
+  { id: 'premios', sections: ['base', 'competicoes'], C: W.AwardsRace },
 ];
 
 export function Home() {
@@ -85,7 +86,7 @@ export function Home() {
   const ids = useMemo(() => (s ? [...new Set([...s.squad.map((p) => p.id), ...s.transfers.map((t) => t.playerId), ...s.youth.map((y) => y.id), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.playerId)), ...(s.worldTransfers ?? []).map((t) => t.playerId), ...(s.tactic?.cornerSupport ?? []), ...(s.loans ?? []).map((l) => l.playerId)])] : []), [s]);
   const teamIds = useMemo(() => (s ? [...new Set([s.club.id, ...s.standings.flatMap((t) => t.rows.map((r) => r.teamId)),
     ...s.matches.flatMap((m) => [m.homeId, m.awayId]).filter((x): x is number => x != null),
-    ...s.transfers.flatMap((t) => [t.fromId, t.toId]), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.teamId)), ...(s.worldTransfers ?? []).flatMap((t) => [t.fromId, t.toId]), s.club.rivalId, ...(s.loans ?? []).map((l) => l.clubId), ...(s.preseason ?? []).flatMap((t) => t.teams.map((x) => x.id))])] : []), [s]);
+    ...s.transfers.flatMap((t) => [t.fromId, t.toId]), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.teamId)), ...(s.worldTransfers ?? []).flatMap((t) => [t.fromId, t.toId]), s.club.rivalId, ...(s.loans ?? []).map((l) => l.clubId), ...(s.preseason ?? []).flatMap((t) => t.teams.map((x) => x.id)), ...(s.awardsRace ?? []).map((x) => x.teamId)])] : []), [s]);
   const ea = useEa(ids, teamIds, s?.names);
 
   if (!snaps) return <p className="p-8 text-muted">Carregando…</p>;

@@ -107,6 +107,11 @@ describe.skipIf(!existsSync(join(DIR, 's6.sav')))('várias carreiras', () => {
     expect(a.loans.filter((l) => l.dir === 'out').map((l) => l.playerId).sort()).toEqual([211625, 276880, 85704, 89903]);
     expect(a.loans.filter((l) => l.dir === 'in')).toMatchObject([{ playerId: 237658, clubId: 110, until: 20270630 }]);
     expect(b.loans.find((l) => l.playerId === 277309)).toMatchObject({ dir: 'out', buyOption: 11_100_000 });
+    // Moral de todo o elenco também depois de jogo oficial (o save guarda eventos de moral no meio dos registros)
+    expect(s5.squad.filter((p) => p.morale != null)).toHaveLength(s5.squad.length);
+    // Corrida dos prêmios (igual ao CM Tracker) e técnico do mês em set/2026 no América
+    expect(a.awardsRace.slice(0, 6).map((x) => [x.teamName, x.rank])).toEqual([['Arsenal', 1], ['Manchester City', 2], ['Manchester United', 3], ['Aston Villa', 4], ['Paris Saint-Germain', 1], ['RC Lens', 2]]);
+    expect(b.manager?.awards).toMatchObject([{ date: 20260901, teamName: 'América', type: 0 }]);
     // Pré-temporada: 3 convites no save do América
     expect(a.preseason.map((t) => [t.name, t.prize, t.teams.length])).toEqual([
       ['European International Cup', 2_500_000, 8], ['Champions Trophy', 2_000_000, 8], ['European Shield', 2_100_000, 8]]);

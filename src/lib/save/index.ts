@@ -15,6 +15,7 @@ import { readManagerHistory, type ManagerHistory } from './modules/manager';
 import { readPlayerStats, type PlayerStatRecord } from './modules/playerStats';
 import { readLoans, type LoanRecord } from './modules/loans';
 import { readPreseason, type PreseasonTour } from './modules/preseason';
+import { readAwardsRace, type AwardContender } from './modules/awards';
 
 export interface CareerSave {
   slotName: string;
@@ -38,6 +39,8 @@ export interface CareerSave {
   loans: LoanRecord[];
   /** Convites de torneios de pré-temporada (psem). */
   preseason: PreseasonTour[];
+  /** Times candidatos aos prêmios da temporada (awrm). */
+  awardsRace: AwardContender[];
   container: SaveContainer;
 }
 
@@ -83,6 +86,7 @@ export function readSave(file: Uint8Array): CareerSave {
     playerStats: (() => { try { return fcem ? readPlayerStats(fcem, playerIds) : []; } catch { return []; } })(),
     loans: mod('lnsm', readLoans),
     preseason: mod('psem', readPreseason),
+    awardsRace: mod('awrm', readAwardsRace),
     container,
   };
 }
@@ -103,4 +107,4 @@ function userTeam(t: Record<string, Row[]>): number | null {
   return best;
 }
 
-export type { Row, TableDef, StandingRow, TeamLineup, RawFixture, Fitness, CardRecord, TransferRecord, SaveNames, Finances, SquadRoles, PlayerMorale, ManagerHistory, PlayerStatRecord, LoanRecord, PreseasonTour };
+export type { Row, TableDef, StandingRow, TeamLineup, RawFixture, Fitness, CardRecord, TransferRecord, SaveNames, Finances, SquadRoles, PlayerMorale, ManagerHistory, PlayerStatRecord, LoanRecord, PreseasonTour, AwardContender };

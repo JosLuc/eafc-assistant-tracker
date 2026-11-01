@@ -716,6 +716,9 @@ export function GoldenBoot({ s, ea }: P) {
 
 const OBJECTIVE: Record<number, string> = { 0: 'Ser campeão da liga', 6: 'Conseguir o acesso direto' };
 
+const MANAGER_AWARD: Record<number, string> = { 0: 'Técnico do mês' };
+const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
 export function ManagerCV({ s }: P) {
   const m = s.manager;
   if (!m) return <Card title="Currículo do técnico" empty="Não achei o técnico neste save." />;
@@ -728,6 +731,7 @@ export function ManagerCV({ s }: P) {
       <Stat label="Maior vitória" value={m.biggestWin ? `${m.biggestWin.score} vs ${m.biggestWin.opponent}` : '—'} />
       <Stat label="Pior sequência de derrotas" value={m.worstStreak ?? 0} />
       <Stat label="No clube desde" value={dateBr(m.joined)} />
+      {(m.awards?.length ?? 0) > 0 && <Stat label="Prêmios" value={m.awards!.map((a) => `${MANAGER_AWARD[a.type] ?? 'Prêmio'} (${MONTHS[fromYmd(a.date).getUTCMonth()]}/${String(fromYmd(a.date).getUTCFullYear()).slice(2)}, ${a.teamName})`).join(' · ')} />}
       {clubs.length > 0 && (
         <ul className="mt-2 space-y-1 border-t border-line pt-2 text-xs">
           {clubs.map((c, i) => (
@@ -962,6 +966,26 @@ export function PreseasonTour({ s, ea }: P) {
           <div className="flex items-center justify-between font-semibold">{t.name}<span className="text-[10px] font-normal uppercase text-muted">{inTour(t) ? 'a decidir' : ''}</span></div>
           <div className="flex justify-between text-xs text-muted"><span>Times</span><b className="text-white">{t.teams.length}</b></div>
           <div className="flex justify-between text-xs text-muted"><span>Prêmio</span><b className="text-white">{money(t.prize)}</b></div>
+        </li>
+      ))}</ul>
+    </Card>
+  );
+}
+
+/** Corrida dos prêmios: os candidatos das grandes ligas, como no CM Tracker (pela posição na temporada anterior). */
+export function AwardsRace({ s, ea }: P) {
+  const list = s.awardsRace ?? [];
+  const help = 'Times candidatos aos prêmios da temporada nas grandes ligas, pela posição na temporada anterior. O jogo guarda o elenco de cada um.';
+  if (!list.length) return <Card title="Corrida dos prêmios" help={help} empty="O save não trouxe a corrida dos prêmios." />;
+  return (
+    <Card title="Corrida dos prêmios" help={help}
+      more={() => <Table head={['Time', 'Liga', 'Posição', 'Jogadores']} align={['l', 'l', 'r', 'r']}
+        rows={list.map((x) => [<span key="t" className="flex items-center gap-1"><Crest id={x.teamId} name={x.teamName} ea={ea} size={14} />{x.teamName}</span>, x.league, x.rank ? `${x.rank}º` : '—', x.players.length])} />}>
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">Candidatos da temporada</div>
+      <ul>{list.slice(0, 6).map((x) => (
+        <li key={`${x.leagueId}-${x.teamId}`} className="flex items-center gap-2 py-1 text-sm">
+          <Crest id={x.teamId} name={x.teamName} ea={ea} size={20} />
+          <div className="min-w-0"><div className="truncate font-semibold">{x.teamName}</div><div className="text-[11px] text-muted">{x.league} · {x.rank ? `${x.rank}º` : '—'} na temporada passada</div></div>
         </li>
       ))}</ul>
     </Card>
