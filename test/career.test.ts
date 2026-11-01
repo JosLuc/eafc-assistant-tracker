@@ -30,7 +30,7 @@ describe.skipIf(!existsSync(join(DIR, 's4.sav')))('resumo da Home com save real'
     const pre = s.standings.find((t) => t.rows.some((r) => r.teamId === 13 && r.played > 0))!;
     expect(pre.title).toBe('Torneio de pré-temporada');
     expect(pre.rows.find((r) => r.teamId === 13)).toMatchObject({ played: 2, points: 0 });
-    expect(JSON.stringify(s).length).toBeLessThan(60_000);
+    expect(JSON.stringify(s).length).toBeLessThan(400_000);
   }, 60_000);
   it('lê jogos, lesões, cartões e transferências', () => {
     expect(s.standings.filter((t) => t.isLeague)).toHaveLength(1);
@@ -109,6 +109,11 @@ describe.skipIf(!existsSync(join(DIR, 's6.sav')))('várias carreiras', () => {
     expect(b.loans.find((l) => l.playerId === 277309)).toMatchObject({ dir: 'out', buyOption: 11_100_000 });
     // Moral de todo o elenco também depois de jogo oficial (o save guarda eventos de moral no meio dos registros)
     expect(s5.squad.filter((p) => p.morale != null)).toHaveLength(s5.squad.length);
+    // Histórico de transferências do mundo (previousteam): a temporada inteira do Pisa
+    expect(b.worldTransfers.length).toBeGreaterThan(1500);
+    // Transferências recentes com valor (trfm, bloco de 70 bytes)
+    expect(b.transfers.find((t) => t.playerId === 240277)).toMatchObject({ date: 20270201, fromName: 'Villarreal CF', toName: 'Milano FC', fee: 21_000_000, wage: 51_000 });
+    expect(b.worldTransfers.filter((t) => t.fee != null).length).toBeGreaterThan(40);
     // Corrida dos prêmios (igual ao CM Tracker) e técnico do mês em set/2026 no América
     expect(a.awardsRace.slice(0, 6).map((x) => [x.teamName, x.rank])).toEqual([['Arsenal', 1], ['Manchester City', 2], ['Manchester United', 3], ['Aston Villa', 4], ['Paris Saint-Germain', 1], ['RC Lens', 2]]);
     expect(b.manager?.awards).toMatchObject([{ date: 20260901, teamName: 'América', type: 0 }]);

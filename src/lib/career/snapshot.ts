@@ -84,7 +84,7 @@ export interface CareerSnapshot {
   /** Tática ativa e cobradores de bola parada. */
   tactic: Tactic | null;
   /** Transferências pelo mundo registradas no save (persistent_events). */
-  worldTransfers: { date: number; playerId: number; fromId: number; fromName: string; toId: number; toName: string }[];
+  worldTransfers: { date: number; playerId: number; fromId: number; fromName: string; toId: number; toName: string; fee?: number; wage?: number }[];
   /** Empréstimos do clube: emprestados (out) e recebidos (in). */
   loans: Loan[];
   /** Convites de torneios de pré-temporada. */
@@ -307,13 +307,48 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
     stats,
     careerKey: careerKeyOf(mgr, clubId),
     tactic: readTactic(t, clubId),
-    worldTransfers: (t.persistent_events ?? []).filter((e) => num(e, 'eventid') === 5 && num(e, 'player1id') > 0)
-      .map((e) => ({ date: num(e, 'eventdate'), playerId: num(e, 'player1id'), fromId: num(e, 'team1id'), fromName: teamName(num(e, 'team1id')), toId: num(e, 'team2id'), toName: teamName(num(e, 'team2id')) }))
-      .sort((a, b) => b.date - a.date),
+    worldTransfers: worldTransfers(save, teamName, players),
     awardsRace: save.awardsRace.map((x) => ({ ...x, teamName: teamName(x.teamId), league: leagueName(x.leagueId) })),
     loans: clubLoans(save, clubId, teamName, players, today),
     preseason: save.preseason.map((x) => ({ key: x.key, name: x.name, prize: x.prize, teams: x.teams.map((id) => ({ id, name: teamName(id) })) })),
   };
+}
+
+/**
+ * Transferências do mundo inteiro na carreira. Fontes:
+ *  - previousteam (clube anterior) + teamplayerlinks (clube atual) + players.playerjointeamdate (data):
+ *    o jogo acrescenta uma linha a cada transferência, então dá o histórico completo (1.743 no fim da temporada do Pisa);
+ *  - persistent_events eventid 5 (transferências marcantes);
+ *  - trfm (só as recentes, com valor e salário).
+ * O valor só existe para as recentes; o jogo não guarda o das antigas.
+ */
+function worldTransfers(save: CareerSave, teamName: (id: number) => string, players: Map<number, Row>) {
+  const t = save.tables;
+  const intl = new Set((t.leagues ?? []).filter((l) => num(l, 'isinternationalleague')).map((l) => num(l, 'leagueid')));
+  const clubs = new Set((t.leagueteamlinks ?? []).filter((l) => !intl.has(num(l, 'leagueid'))).map((l) => num(l, 'teamid')));
+  const club = new Map<number, number>();
+  for (const l of t.teamplayerlinks ?? []) if (clubs.has(num(l, 'teamid'))) club.set(num(l, 'playerid'), num(l, 'teamid'));
+  // Só o que aconteceu na carreira (o banco inicial já traz o clube anterior de quem chegou antes).
+  const careerStart = 20260701;
+  const fee = new Map(save.transfers.map((x) => [`${x.playerId}-${x.toTeam}`, x]));
+  const out = new Map<string, CareerSnapshot['worldTransfers'][number]>();
+  const add = (x: CareerSnapshot['worldTransfers'][number]) => { const k = `${x.playerId}-${x.toId}`; if (!out.has(k) || (x.fee && !out.get(k)!.fee)) out.set(k, x); };
+  for (const r of t.previousteam ?? []) {
+    const pid = num(r, 'playerid'), from = num(r, 'previousteamid'), to = club.get(pid);
+    const date = toYmd(fromGameDays(num(players.get(pid), 'playerjointeamdate')));
+    if (to == null || to === from || date < careerStart) continue;
+    const f = fee.get(`${pid}-${to}`);
+    add({ date, playerId: pid, fromId: from, fromName: teamName(from), toId: to, toName: teamName(to), fee: f?.fee, wage: f?.wage });
+  }
+  for (const x of save.transfers) {
+    if (x.date < careerStart) continue;
+    add({ date: x.date, playerId: x.playerId, fromId: x.fromTeam, fromName: teamName(x.fromTeam), toId: x.toTeam, toName: teamName(x.toTeam), fee: x.fee, wage: x.wage });
+  }
+  for (const e of t.persistent_events ?? []) {
+    if (num(e, 'eventid') !== 5 || num(e, 'player1id') <= 0) continue;
+    add({ date: num(e, 'eventdate'), playerId: num(e, 'player1id'), fromId: num(e, 'team1id'), fromName: teamName(num(e, 'team1id')), toId: num(e, 'team2id'), toName: teamName(num(e, 'team2id')) });
+  }
+  return [...out.values()].sort((a, b) => b.date - a.date);
 }
 
 function clubLoans(save: CareerSave, clubId: number, teamName: (id: number) => string, players: Map<number, Row>, today: Date): Loan[] {

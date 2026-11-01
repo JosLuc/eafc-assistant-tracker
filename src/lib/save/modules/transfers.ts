@@ -22,3 +22,24 @@ export function readTransfers(trfm: Uint8Array): TransferRecord[] {
   }
   return out;
 }
+
+/**
+ * Transferências concluídas com valor, segundo bloco do `trfm` (registros de 70 bytes; o jogo mantém só as ~60 mais recentes):
+ *   00 01 | data u32 | 01 | data 2 u32 | 01 | u32 | tipo u8 | ffffffff | u32 | 01 | playerid | para | de | salário | valor
+ *   | 12×ff | cláusula/valor extra u32 | ffffffff | 00000000
+ * Conferido no save do Pisa: o jogador já está no clube "para" (ex.: 240277 Villarreal → Milano FC, €21 mi, 01/02/2027).
+ */
+export function readTransferHistory(trfm: Uint8Array): TransferRecord[] {
+  const out: TransferRecord[] = [];
+  const date = (o: number) => { const d = u32(trfm, o); return d > 20000101 && d < 21000101 ? d : 0; };
+  for (let o = 0; o + 70 <= trfm.length; o++) {
+    if (trfm[o + 1] !== 1 || trfm[o + 6] !== 1 || trfm[o + 11] !== 1 || trfm[o + 25] !== 1) continue;
+    const d = date(o + 2);
+    if (!d || !date(o + 7)) continue;
+    const playerId = u32(trfm, o + 26);
+    if (playerId <= 0 || playerId >= 400000) continue;
+    out.push({ date: d, type: trfm[o + 16]!, toTeam: u32(trfm, o + 30), fromTeam: u32(trfm, o + 34), playerId, wage: u32(trfm, o + 38), fee: u32(trfm, o + 42) });
+    o += 69;
+  }
+  return out;
+}

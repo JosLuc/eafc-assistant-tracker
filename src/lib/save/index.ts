@@ -6,7 +6,7 @@ import { readLineups, type TeamLineup } from './modules/lineups';
 import { readFixtures, type RawFixture } from './modules/fixtures';
 import { readFitness, type Fitness } from './modules/fitness';
 import { readCards, type CardRecord } from './modules/cards';
-import { readTransfers, type TransferRecord } from './modules/transfers';
+import { readTransfers, readTransferHistory, type TransferRecord } from './modules/transfers';
 import { readNames, type SaveNames } from './modules/names';
 import { readFinances, type Finances } from './modules/finances';
 import { readRoles, type SquadRoles } from './modules/roles';
@@ -77,7 +77,7 @@ export function readSave(file: Uint8Array): CareerSave {
     fixtures: fcem ? readFixtures(fcem) : [],
     fitness: mod('fitm', readFitness),
     cards: mod('susm', readCards),
-    transfers: mod('trfm', readTransfers),
+    transfers: mod('trfm', (b) => { const a = readTransfers(b), h = readTransferHistory(b); return [...a, ...h.filter((x) => !a.some((y) => y.playerId === x.playerId && y.toTeam === x.toTeam))]; }),
     names: one('ytpm', (b) => readNames(b, (id) => playerIds.has(id))) ?? { people: new Map(), dict: new Map() },
     finances: one('tfnm', readFinances),
     roles: one('pstm', readRoles),

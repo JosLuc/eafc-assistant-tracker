@@ -246,36 +246,47 @@ function TransferRow({ t, s, ea, fee = true }: { t: { date: number; playerId: nu
           <Crest id={t.fromId} name={t.fromName} ea={ea} size={12} />{t.fromName} → <Crest id={t.toId} name={t.toName} ea={ea} size={12} />{t.toName}
         </div>
       </div>
-      <div className="text-right">{fee && <div className="text-xs font-semibold tabular-nums">{t.fee ? money(t.fee) : 'Livre'}</div>}<div className="text-[10px] text-muted">{dateBr(t.date).slice(0, 5)}</div></div>
+      <div className="text-right">{fee && <div className="text-xs font-semibold tabular-nums">{feeText(t)}</div>}<div className="text-[10px] text-muted">{dateBr(t.date).slice(0, 5)}</div></div>
     </li>
   );
 }
 
+/** Todas as transferências conhecidas: as recentes com valor (trfm) e o histórico do mundo (previousteam), acumuladas de todos os saves. */
+function allTransfers(s: CareerSnapshot) {
+  const map = new Map<string, { date: number; playerId: number; fromId: number; fromName: string; toId: number; toName: string; fee?: number; wage?: number }>();
+  for (const t of [...(s.worldTransfers ?? []), ...s.transfers]) {
+    const k = `${t.playerId}-${t.toId}`;
+    const old = map.get(k);
+    if (!old || (t.fee != null && old.fee == null)) map.set(k, { ...old, ...t });
+  }
+  return [...map.values()].sort((a, b) => b.date - a.date);
+}
+const feeText = (t: { fee?: number }) => t.fee == null ? '—' : t.fee ? money(t.fee) : 'Livre';
+
 /** Mercado: as transferências pelo mundo que o save registra. */
 export function TransferMarket({ s, ea }: P) {
-  const deals = s.transfers.filter((t) => t.toId !== s.club.id && t.fromId !== s.club.id);
-  const world = s.worldTransfers ?? [];
-  const list = [...deals.map((t) => ({ ...t, hasFee: true })), ...world.filter((w) => !deals.some((d) => d.playerId === w.playerId)).map((t) => ({ ...t, fee: 0, hasFee: false }))]
-    .sort((a, b) => b.date - a.date);
-  if (!list.length) return <Card title="Mercado de transferências" help="Transferências entre outros clubes registradas no save." empty="Nenhuma transferência registrada neste save. Aparece quando os clubes negociam." />;
+  const list = allTransfers(s).filter((t) => t.toId !== s.club.id && t.fromId !== s.club.id);
+  const help = 'Transferências entre outros clubes na carreira. O save guarda o clube anterior de cada jogador, então o histórico é completo; o valor só aparece nas mais recentes (o jogo apaga o das antigas, por isso vale enviar saves com frequência).';
+  if (!list.length) return <Card title="Mercado de transferências" help={help} empty="Nenhuma transferência registrada neste save. Aparece quando os clubes negociam." />;
   return (
-    <Card title="Mercado de transferências" help="Transferências entre outros clubes que o save registra (o jogo guarda só as mais recentes; o app acumula as de todos os saves da carreira)."
-      more={() => <Table head={['Data', 'Jogador', 'De', 'Para', 'Valor']} align={['l', 'l', 'l', 'l', 'r']} rows={list.map((t) => [dateBr(t.date), <PlayerName key="n" id={t.playerId} ea={ea} />, t.fromName, t.toName, t.hasFee ? (t.fee ? money(t.fee) : 'Livre') : '—'])} />}>
-      <ul className="space-y-1">{list.slice(0, 7).map((t, i) => <TransferRow key={i} t={t} s={s} ea={ea} fee={t.hasFee} />)}</ul>
+    <Card title="Mercado de transferências" help={help}
+      more={() => <Table head={['Data', 'Jogador', 'De', 'Para', 'Valor']} align={['l', 'l', 'l', 'l', 'r']} rows={list.map((t) => [dateBr(t.date), <PlayerName key="n" id={t.playerId} ea={ea} />, t.fromName, t.toName, feeText(t)])} />}>
+      <div className="mb-2 text-xs text-muted">{list.length} transferências na carreira</div>
+      <ul className="space-y-1">{list.slice(0, 6).map((t, i) => <TransferRow key={i} t={t} s={s} ea={ea} fee={t.fee != null} />)}</ul>
     </Card>
   );
 }
 
 export function Transfers({ s, ea }: P) {
-  const list = s.transfers.filter((t) => t.toId === s.club.id || t.fromId === s.club.id);
-  if (!list.length) return <Card title="Transferências da temporada" help="Contratações e vendas do seu clube." empty="Seu clube ainda não fez negócios nesta temporada." />;
-  const spent = list.filter((t) => t.toId === s.club.id).reduce((a, t) => a + t.fee, 0);
-  const got = list.filter((t) => t.fromId === s.club.id).reduce((a, t) => a + t.fee, 0);
+  const list = allTransfers(s).filter((t) => t.toId === s.club.id || t.fromId === s.club.id);
+  if (!list.length) return <Card title="Transferências do clube" help="Contratações e vendas do seu clube." empty="Seu clube ainda não fez negócios na carreira." />;
+  const spent = list.filter((t) => t.toId === s.club.id).reduce((a, t) => a + (t.fee ?? 0), 0);
+  const got = list.filter((t) => t.fromId === s.club.id).reduce((a, t) => a + (t.fee ?? 0), 0);
   return (
-    <Card title="Transferências da temporada" help="Contratações e vendas do seu clube, com valor e salário."
-      more={() => <Table head={['Data', 'Jogador', 'De', 'Para', 'Valor', 'Salário/sem']} align={['l', 'l', 'l', 'l', 'r', 'r']} rows={list.map((t) => [dateBr(t.date), <PlayerName key="n" id={t.playerId} ea={ea} />, t.fromName, t.toName, t.fee ? money(t.fee) : 'Livre', t.wage ? money(t.wage) : '—'])} />}>
-      <div className="mb-2 flex gap-4 text-xs"><span>Gasto <b className="text-bad">{money(spent)}</b></span><span>Recebido <b className="text-good">{money(got)}</b></span></div>
-      <ul className="space-y-1">{list.slice(0, 6).map((t, i) => <TransferRow key={i} t={t} s={s} ea={ea} />)}</ul>
+    <Card title="Transferências do clube" help="Contratações e vendas do seu clube na carreira, com valor e salário quando o save ainda guarda."
+      more={() => <Table head={['Data', 'Jogador', 'De', 'Para', 'Valor', 'Salário/sem']} align={['l', 'l', 'l', 'l', 'r', 'r']} rows={list.map((t) => [dateBr(t.date), <PlayerName key="n" id={t.playerId} ea={ea} />, t.fromName, t.toName, feeText(t), t.wage ? money(t.wage) : '—'])} />}>
+      <div className="mb-2 flex gap-4 text-xs"><span>Chegaram <b>{list.filter((t) => t.toId === s.club.id).length}</b></span><span>Saíram <b>{list.filter((t) => t.fromId === s.club.id).length}</b></span><span>Gasto <b className="text-bad">{money(spent)}</b></span><span>Recebido <b className="text-good">{money(got)}</b></span></div>
+      <ul className="space-y-1">{list.slice(0, 6).map((t, i) => <TransferRow key={i} t={t} s={s} ea={ea} fee={t.fee != null} />)}</ul>
     </Card>
   );
 }
