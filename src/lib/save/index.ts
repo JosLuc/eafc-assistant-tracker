@@ -20,6 +20,8 @@ import { readBudgets, type ClubBudget } from './modules/budgets';
 import { readPlayerValues, readPlayerForm, type PlayerForm } from './modules/playerValues';
 import { readSocial, EMAIL, type SocialPost } from './modules/social';
 import { readDynamicOvr, type DynamicOvr } from './modules/dynamicOvr';
+import { readCoaches, type Coach } from './modules/coaches';
+import { readSuggestedPlayers, readMarketList, type SuggestedPlayer, type MarketListing } from './modules/market';
 
 export interface CareerSave {
   slotName: string;
@@ -57,6 +59,12 @@ export interface CareerSave {
   emails: SocialPost[];
   /** OVR dinâmico: quanto a forma e o cansaço mudam o OVR e os atributos (dovm). */
   dynamicOvr: DynamicOvr[];
+  /** Comissão técnica do clube e mercado de treinadores (coam). */
+  coaches: Coach[];
+  /** Provável: jogadores sugeridos/observados para o clube (pdrm). */
+  suggestedPlayers: SuggestedPlayer[];
+  /** Provável: lista do mercado do mundo durante a janela (plmm). */
+  marketList: MarketListing[];
   container: SaveContainer;
 }
 
@@ -108,6 +116,9 @@ export function readSave(file: Uint8Array): CareerSave {
     social: mod('socm', (b) => readSocial(b)),
     emails: mod('emlm', (b) => readSocial(b, EMAIL)),
     dynamicOvr: mod('dovm', readDynamicOvr),
+    coaches: mod('coam', readCoaches),
+    suggestedPlayers: mod('pdrm', readSuggestedPlayers),
+    marketList: mod('plmm', readMarketList),
     playerValues: one('pvlm', readPlayerValues) ?? new Map(),
     playerForm: mod('plfm', (b) => readPlayerForm(b, new Set((tables.teamplayerlinks ?? []).filter((l) => l.teamid === club).map((l) => l.playerid as number)))),
     container,

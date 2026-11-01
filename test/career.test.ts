@@ -127,6 +127,11 @@ describe.skipIf(!existsSync(join(DIR, 's6.sav')))('várias carreiras', () => {
     // OVR dinâmico (dovm): Wissa +4 de forma e −3 de cansaço depois do jogo
     expect(s6.squad.find((p) => p.id === 266127)).toMatchObject({ ovrForm: 4, ovrFatigue: -3 });
     expect(s5.squad.find((p) => p.id === 266127)).toMatchObject({ ovrForm: 4, ovrFatigue: 0 });
+    // Comissão técnica (coam): 4 treinadores do clube + mercado de treinadores
+    expect(b.coaches.filter((c) => c.hired).map((c) => c.name)).toEqual(['Enrico Palmieri', 'Julian Brunel', 'Giulio Valentini', 'Marc Schmitt']);
+    expect(b.coaches.find((c) => c.name === 'Enrico Palmieri')).toMatchObject({ birthDate: 19680520, nationality: 27, wage: 3192, level: 2, ratings: [1, 1, 3, 1] });
+    expect(b.coaches.length).toBe(24);
+    expect(s6.coaches.find((c) => c.name === 'Selma Ritter')).toMatchObject({ hired: true, ratings: [2, 3, 5, 5] });
     // Orçamentos dos clubes da IA (budm)
     expect(b.budgets.find((x) => x[0] === 1)).toEqual([1, 264_994_256, 164_438_612, 5_159_799]);
     // Corrida dos prêmios (igual ao CM Tracker) e técnico do mês em set/2026 no América

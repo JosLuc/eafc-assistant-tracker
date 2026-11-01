@@ -105,6 +105,8 @@ export interface CareerSnapshot {
   /** Jogadores do mês publicados no feed. */
   playerOfMonth: { date: number | null; playerId: number; teamId: number; teamName: string; competitionId: number }[];
   awardsRace: { teamId: number; teamName: string; leagueId: number; league: string; rank: number; star: number; players: number[] }[];
+  /** Comissão técnica: treinadores do clube (hired) e mercado de treinadores. Função e notas ainda prováveis. */
+  coaches: { id: number; name: string; birthDate: number; nationality: number; wage: number; role: number; level: number; ratings: number[]; hired: boolean }[];
 }
 export interface Loan { dir: 'out' | 'in'; playerId: number; clubId: number; clubName: string; until: number; buyOption: number | null; ovr: number; age: number; pos: number }
 export interface Tactic {
@@ -341,6 +343,7 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
     budgets: save.budgets.map((x) => [x.teamId, x.initial, x.current, x.wageBudget]),
     awardsRace: save.awardsRace.map((x) => ({ ...x, teamName: teamName(x.teamId), league: leagueName(x.leagueId) })),
     loans: clubLoans(save, clubId, teamName, players, today),
+    coaches: save.coaches.map((c) => ({ id: c.id, name: `${c.firstName} ${c.lastName}`, birthDate: c.birthDate, nationality: c.nationality, wage: c.wage, role: c.role, level: c.level, ratings: c.ratings, hired: c.hired })),
     preseason: save.preseason.map((x) => ({ key: x.key, name: x.name, prize: x.prize, teams: x.teams.map((id) => ({ id, name: teamName(id) })) })),
   };
 }
