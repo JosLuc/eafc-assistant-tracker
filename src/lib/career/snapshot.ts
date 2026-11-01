@@ -21,6 +21,8 @@ export interface SquadPlayer {
   /** Papel no elenco: 1 Crucial, 2 Importante, 3 Rodízio, 4 Esporádico, 5 Promessa (módulo pstm). */
   role?: number;
   moraleTeam?: number; moralePlayer?: number; moraleContract?: number;
+  /** Valor de mercado (pvlm), forma 0–100, tendência e últimas notas (plfm). */
+  formScore?: number; formTrend?: number; recentRatings?: number[];
   /** Moral 0–100 e seus componentes (módulo pllm). */
   morale?: number; playingTime?: number;
 }
@@ -90,6 +92,8 @@ export interface CareerSnapshot {
   /** Convites de torneios de pré-temporada. */
   preseason: { key: string; name: string; prize: number; teams: { id: number; name: string }[] }[];
   /** Corrida dos prêmios: times candidatos das grandes ligas (posição na temporada anterior). */
+  /** Orçamento de transferências de cada clube da IA: [teamid, inicial, atual, orçamento salarial]. */
+  budgets: [number, number, number, number][];
   awardsRace: { teamId: number; teamName: string; leagueId: number; league: string; rank: number; star: number; players: number[] }[];
 }
 export interface Loan { dir: 'out' | 'in'; playerId: number; clubId: number; clubName: string; until: number; buyOption: number | null; ovr: number; age: number; pos: number }
@@ -204,6 +208,12 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
 
   // Papéis e moral do elenco.
   if (save.roles?.teamId === clubId) for (const p of squad) p.role = save.roles.roles.get(p.id);
+  const forms = new Map(save.playerForm.map((f) => [f.playerId, f]));
+  for (const p of squad) {
+    p.value = save.playerValues.get(p.id);
+    const f = forms.get(p.id);
+    if (f) { p.formScore = f.form; p.formTrend = f.trend; p.recentRatings = f.ratings; }
+  }
   let morale: CareerSnapshot['morale'] = null;
   if (save.morale?.teamId === clubId && save.morale.players.length) {
     const ms = save.morale.players;
@@ -308,6 +318,7 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
     careerKey: careerKeyOf(mgr, clubId),
     tactic: readTactic(t, clubId),
     worldTransfers: worldTransfers(save, teamName, players),
+    budgets: save.budgets.map((x) => [x.teamId, x.initial, x.current, x.wageBudget]),
     awardsRace: save.awardsRace.map((x) => ({ ...x, teamName: teamName(x.teamId), league: leagueName(x.leagueId) })),
     loans: clubLoans(save, clubId, teamName, players, today),
     preseason: save.preseason.map((x) => ({ key: x.key, name: x.name, prize: x.prize, teams: x.teams.map((id) => ({ id, name: teamName(id) })) })),

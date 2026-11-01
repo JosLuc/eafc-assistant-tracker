@@ -16,6 +16,8 @@ import { readPlayerStats, type PlayerStatRecord } from './modules/playerStats';
 import { readLoans, type LoanRecord } from './modules/loans';
 import { readPreseason, type PreseasonTour } from './modules/preseason';
 import { readAwardsRace, type AwardContender } from './modules/awards';
+import { readBudgets, type ClubBudget } from './modules/budgets';
+import { readPlayerValues, readPlayerForm, type PlayerForm } from './modules/playerValues';
 
 export interface CareerSave {
   slotName: string;
@@ -41,6 +43,12 @@ export interface CareerSave {
   preseason: PreseasonTour[];
   /** Times candidatos aos prêmios da temporada (awrm). */
   awardsRace: AwardContender[];
+  /** Orçamentos de transferências e salários dos clubes da IA (budm). */
+  budgets: ClubBudget[];
+  /** Valor de mercado dos jogadores do seu clube (pvlm). */
+  playerValues: Map<number, number>;
+  /** Forma e últimas notas dos jogadores do seu clube (plfm). */
+  playerForm: PlayerForm[];
   container: SaveContainer;
 }
 
@@ -68,10 +76,11 @@ export function readSave(file: Uint8Array): CareerSave {
     try { return b ? read(b) : null; } catch { return null; }
   };
   const playerIds = new Set((tables.players ?? []).map((r) => r.playerid as number));
+  const club = userTeam(tables);
   return {
     slotName: container.slotName,
     tables,
-    userTeamId: userTeam(tables),
+    userTeamId: club,
     standings: fcem ? readStandings(fcem, (id) => teamIds.has(id)) : new Map(),
     lineups: hstm ? readLineups(hstm) : [],
     fixtures: fcem ? readFixtures(fcem) : [],
@@ -87,6 +96,9 @@ export function readSave(file: Uint8Array): CareerSave {
     loans: mod('lnsm', readLoans),
     preseason: mod('psem', readPreseason),
     awardsRace: mod('awrm', readAwardsRace),
+    budgets: mod('budm', readBudgets),
+    playerValues: one('pvlm', readPlayerValues) ?? new Map(),
+    playerForm: mod('plfm', (b) => readPlayerForm(b, new Set((tables.teamplayerlinks ?? []).filter((l) => l.teamid === club).map((l) => l.playerid as number)))),
     container,
   };
 }
@@ -107,4 +119,4 @@ function userTeam(t: Record<string, Row[]>): number | null {
   return best;
 }
 
-export type { Row, TableDef, StandingRow, TeamLineup, RawFixture, Fitness, CardRecord, TransferRecord, SaveNames, Finances, SquadRoles, PlayerMorale, ManagerHistory, PlayerStatRecord, LoanRecord, PreseasonTour, AwardContender };
+export type { Row, TableDef, StandingRow, TeamLineup, RawFixture, Fitness, CardRecord, TransferRecord, SaveNames, Finances, SquadRoles, PlayerMorale, ManagerHistory, PlayerStatRecord, LoanRecord, PreseasonTour, AwardContender, ClubBudget, PlayerForm };

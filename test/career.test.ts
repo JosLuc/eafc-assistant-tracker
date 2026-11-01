@@ -114,6 +114,12 @@ describe.skipIf(!existsSync(join(DIR, 's6.sav')))('várias carreiras', () => {
     // Transferências recentes com valor (trfm, bloco de 70 bytes)
     expect(b.transfers.find((t) => t.playerId === 240277)).toMatchObject({ date: 20270201, fromName: 'Villarreal CF', toName: 'Milano FC', fee: 21_000_000, wage: 51_000 });
     expect(b.worldTransfers.filter((t) => t.fee != null).length).toBeGreaterThan(40);
+    // Valor de mercado e forma (pvlm, plfm): Wissa fez o gol no 1x1 com o Liverpool
+    expect(s6.squad.find((p) => p.id === 255069)?.value).toBe(43_000_000);
+    expect(s6.squad.find((p) => p.id === 266127)).toMatchObject({ formScore: 61, formTrend: 5 });
+    expect(s6.squad.filter((p) => p.formScore != null)).toHaveLength(s6.squad.length);
+    // Orçamentos dos clubes da IA (budm)
+    expect(b.budgets.find((x) => x[0] === 1)).toEqual([1, 264_994_256, 164_438_612, 5_159_799]);
     // Corrida dos prêmios (igual ao CM Tracker) e técnico do mês em set/2026 no América
     expect(a.awardsRace.slice(0, 6).map((x) => [x.teamName, x.rank])).toEqual([['Arsenal', 1], ['Manchester City', 2], ['Manchester United', 3], ['Aston Villa', 4], ['Paris Saint-Germain', 1], ['RC Lens', 2]]);
     expect(b.manager?.awards).toMatchObject([{ date: 20260901, teamName: 'América', type: 0 }]);
