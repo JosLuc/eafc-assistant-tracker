@@ -23,6 +23,8 @@ export interface SquadPlayer {
   moraleTeam?: number; moralePlayer?: number; moraleContract?: number;
   /** Valor de mercado (pvlm), forma 0–100, tendência e últimas notas (plfm). */
   formScore?: number; formTrend?: number; recentRatings?: number[];
+  /** OVR dinâmico (dovm): pontos de OVR ganhos/perdidos pela forma e pelo cansaço. */
+  ovrForm?: number; ovrFatigue?: number;
   /** Moral 0–100 e seus componentes (módulo pllm). */
   morale?: number; playingTime?: number;
 }
@@ -217,10 +219,13 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
   // Papéis e moral do elenco.
   if (save.roles?.teamId === clubId) for (const p of squad) p.role = save.roles.roles.get(p.id);
   const forms = new Map(save.playerForm.map((f) => [f.playerId, f]));
+  const dyn = new Map(save.dynamicOvr.map((d) => [d.playerId, d]));
   for (const p of squad) {
     p.value = save.playerValues.get(p.id);
     const f = forms.get(p.id);
     if (f) { p.formScore = f.form; p.formTrend = f.trend; p.recentRatings = f.ratings; }
+    const d = dyn.get(p.id);
+    if (d) { p.ovrForm = d.form; p.ovrFatigue = d.fatigue; }
   }
   let morale: CareerSnapshot['morale'] = null;
   if (save.morale?.teamId === clubId && save.morale.players.length) {

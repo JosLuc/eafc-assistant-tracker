@@ -124,6 +124,9 @@ describe.skipIf(!existsSync(join(DIR, 's6.sav')))('várias carreiras', () => {
     expect(b.news.find((x) => x.key.startsWith('CM_Social_NewManager_WasFired'))).toMatchObject({ date: 20270511 });
     // E-mails (emlm): aviso de demissão da diretoria
     expect(b.emails.some((x) => x.key === 'CM_Email_Board_SackWarn')).toBe(true);
+    // OVR dinâmico (dovm): Wissa +4 de forma e −3 de cansaço depois do jogo
+    expect(s6.squad.find((p) => p.id === 266127)).toMatchObject({ ovrForm: 4, ovrFatigue: -3 });
+    expect(s5.squad.find((p) => p.id === 266127)).toMatchObject({ ovrForm: 4, ovrFatigue: 0 });
     // Orçamentos dos clubes da IA (budm)
     expect(b.budgets.find((x) => x[0] === 1)).toEqual([1, 264_994_256, 164_438_612, 5_159_799]);
     // Corrida dos prêmios (igual ao CM Tracker) e técnico do mês em set/2026 no América

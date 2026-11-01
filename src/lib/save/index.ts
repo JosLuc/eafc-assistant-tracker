@@ -19,6 +19,7 @@ import { readAwardsRace, type AwardContender } from './modules/awards';
 import { readBudgets, type ClubBudget } from './modules/budgets';
 import { readPlayerValues, readPlayerForm, type PlayerForm } from './modules/playerValues';
 import { readSocial, EMAIL, type SocialPost } from './modules/social';
+import { readDynamicOvr, type DynamicOvr } from './modules/dynamicOvr';
 
 export interface CareerSave {
   slotName: string;
@@ -54,6 +55,8 @@ export interface CareerSave {
   social: SocialPost[];
   /** Caixa de e-mails do técnico (emlm). */
   emails: SocialPost[];
+  /** OVR dinâmico: quanto a forma e o cansaço mudam o OVR e os atributos (dovm). */
+  dynamicOvr: DynamicOvr[];
   container: SaveContainer;
 }
 
@@ -104,6 +107,7 @@ export function readSave(file: Uint8Array): CareerSave {
     budgets: mod('budm', readBudgets),
     social: mod('socm', (b) => readSocial(b)),
     emails: mod('emlm', (b) => readSocial(b, EMAIL)),
+    dynamicOvr: mod('dovm', readDynamicOvr),
     playerValues: one('pvlm', readPlayerValues) ?? new Map(),
     playerForm: mod('plfm', (b) => readPlayerForm(b, new Set((tables.teamplayerlinks ?? []).filter((l) => l.teamid === club).map((l) => l.playerid as number)))),
     container,
@@ -126,4 +130,4 @@ function userTeam(t: Record<string, Row[]>): number | null {
   return best;
 }
 
-export type { Row, TableDef, StandingRow, TeamLineup, RawFixture, Fitness, CardRecord, TransferRecord, SaveNames, Finances, SquadRoles, PlayerMorale, ManagerHistory, PlayerStatRecord, LoanRecord, PreseasonTour, AwardContender, ClubBudget, PlayerForm, SocialPost };
+export type { Row, TableDef, StandingRow, TeamLineup, RawFixture, Fitness, CardRecord, TransferRecord, SaveNames, Finances, SquadRoles, PlayerMorale, ManagerHistory, PlayerStatRecord, LoanRecord, PreseasonTour, AwardContender, ClubBudget, PlayerForm, SocialPost, DynamicOvr };
