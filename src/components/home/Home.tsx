@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import type { CareerSnapshot } from '@/lib/career/snapshot';
-import { addSnapshot, loadSnapshots, parseInWorker } from '@/lib/client/store';
+import { addSnapshot, loadSnapshots, parseInWorker, removeCareer } from '@/lib/client/store';
+import { careerKey, groupCareers, type Career } from '@/lib/career/merge';
 import { useEa } from './names';
 import { Header } from './Header';
 import { Upload } from './Upload';
@@ -19,31 +20,34 @@ const SECTIONS = [
 ] as const;
 type Section = (typeof SECTIONS)[number]['id'];
 
-const WIDGETS: { id: string; sections: Section[]; C: (p: { s: CareerSnapshot; ea: ReturnType<typeof useEa> }) => React.ReactNode; wide?: boolean }[] = [
+const WIDGETS: { id: string; sections: Section[]; C: (p: { s: CareerSnapshot; ea: ReturnType<typeof useEa>; career: Career }) => React.ReactNode; wide?: boolean }[] = [
   { id: 'dica', sections: ['geral'], C: W.AssistantTips, wide: true },
-  { id: 'calendario', sections: ['geral', 'competicoes'], C: W.Calendar },
-  { id: 'proximo', sections: ['geral', 'competicoes'], C: W.NextMatch },
+  { id: 'calendario', sections: ['geral'], C: W.Calendar },
+  { id: 'proximo', sections: ['geral'], C: W.NextMatch },
   { id: 'liga', sections: ['geral', 'competicoes'], C: W.LeaguePosition },
-  { id: 'forca', sections: ['geral', 'elenco'], C: W.TeamPower },
-  { id: 'xi', sections: ['geral', 'elenco'], C: W.StartingXI },
-  { id: 'moral', sections: ['geral', 'elenco'], C: W.SquadMorale },
-  { id: 'resultados', sections: ['geral', 'competicoes'], C: W.Results },
-  { id: 'lesoes', sections: ['geral', 'lesoes'], C: W.Availability },
-  { id: 'ultimo', sections: ['geral', 'competicoes', 'elenco'], C: W.LastMatch },
-  { id: 'financas', sections: ['geral', 'clube'], C: W.ClubFinances },
-  { id: 'cargo', sections: ['geral', 'tecnico'], C: W.JobSecurity },
+  { id: 'forca', sections: ['geral'], C: W.TeamPower },
+  { id: 'xi', sections: ['geral'], C: W.StartingXI },
+  { id: 'moral', sections: ['geral'], C: W.SquadMorale },
+  { id: 'identidade', sections: ['geral'], C: W.CareerIdentity },
+  { id: 'mudou', sections: ['geral'], C: W.WhatChanged },
+  { id: 'status', sections: ['geral'], C: W.SaveStatus },
   { id: 'elenco', sections: ['elenco'], C: W.SquadOverview },
-  { id: 'destaques', sections: ['geral', 'elenco'], C: W.SeasonLeaders },
-  { id: 'artilharia', sections: ['competicoes'], C: W.GoldenBoot },
-  { id: 'papeis', sections: ['elenco', 'contratos'], C: W.SquadRoles },
-  { id: 'bolas', sections: ['elenco'], C: W.SetPieces },
+  { id: 'destaques', sections: ['elenco'], C: W.SeasonLeaders },
+  { id: 'papeis', sections: ['elenco'], C: W.SquadRoles },
+  { id: 'tatica', sections: ['elenco'], C: W.SetPieces, wide: true },
+  { id: 'lesoes', sections: ['lesoes'], C: W.Availability },
   { id: 'cartoes', sections: ['lesoes'], C: W.Discipline },
+  { id: 'mercado', sections: ['contratos'], C: W.TransferMarket },
   { id: 'transferencias', sections: ['contratos'], C: W.Transfers },
   { id: 'contratos', sections: ['contratos'], C: W.Contracts },
-  { id: 'salarios', sections: ['contratos'], C: W.Wages },
+  { id: 'artilharia', sections: ['competicoes'], C: W.GoldenBoot },
+  { id: 'trofeus', sections: ['competicoes'], C: W.Silverware },
+  { id: 'resultados', sections: ['competicoes'], C: W.Results },
   { id: 'jogos', sections: ['competicoes'], C: W.Fixtures },
   { id: 'clube', sections: ['clube'], C: W.Club },
+  { id: 'financas', sections: ['clube'], C: W.ClubFinances },
   { id: 'cv', sections: ['tecnico'], C: W.ManagerCV },
+  { id: 'cargo', sections: ['tecnico'], C: W.JobSecurity },
   { id: 'historico', sections: ['tecnico'], C: W.SeasonHistory, wide: true },
   { id: 'base', sections: ['base'], C: W.YouthAcademy },
   { id: 'olheiros', sections: ['base'], C: W.ScoutStaff },
@@ -56,22 +60,29 @@ export function Home() {
   const [error, setError] = useState<string>();
   const [section, setSection] = useState<Section>('geral');
 
-  useEffect(() => { loadSnapshots().then(setSnaps); }, []);
-  const s = snaps?.at(-1);
+  const [sel, setSel] = useState<string>();
+  useEffect(() => {
+    loadSnapshots().then(setSnaps);
+    try { setSel(localStorage.getItem('fc27:career') ?? undefined); } catch { /* sem armazenamento */ }
+  }, []);
+  const careers = useMemo(() => groupCareers(snaps ?? []), [snaps]);
+  const career = careers.find((c) => c.key === sel) ?? careers[0];
+  const s = career?.view;
+  const choose = (k: string) => { setSel(k); try { localStorage.setItem('fc27:career', k); } catch { /* ok */ } };
 
   async function onFile(f: File) {
     setBusy(true); setError(undefined);
     try {
       const snap = await parseInWorker(await f.arrayBuffer());
-      setSnaps(await addSnapshot(snap)); setUploading(false);
+      setSnaps(await addSnapshot(snap)); setUploading(false); choose(careerKey(snap));
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   }
 
-  const ids = useMemo(() => (s ? [...new Set([...s.squad.map((p) => p.id), ...s.transfers.map((t) => t.playerId), ...s.youth.map((y) => y.id), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.playerId))])] : []), [s]);
+  const ids = useMemo(() => (s ? [...new Set([...s.squad.map((p) => p.id), ...s.transfers.map((t) => t.playerId), ...s.youth.map((y) => y.id), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.playerId)), ...(s.worldTransfers ?? []).map((t) => t.playerId), ...(s.tactic?.cornerSupport ?? [])])] : []), [s]);
   const teamIds = useMemo(() => (s ? [...new Set([s.club.id, ...s.standings.flatMap((t) => t.rows.map((r) => r.teamId)),
     ...s.matches.flatMap((m) => [m.homeId, m.awayId]).filter((x): x is number => x != null),
-    ...s.transfers.flatMap((t) => [t.fromId, t.toId]), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.teamId))])] : []), [s]);
+    ...s.transfers.flatMap((t) => [t.fromId, t.toId]), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.teamId)), ...(s.worldTransfers ?? []).flatMap((t) => [t.fromId, t.toId]), s.club.rivalId])] : []), [s]);
   const ea = useEa(ids, teamIds, s?.names);
 
   if (!snaps) return <p className="p-8 text-muted">Carregando…</p>;
@@ -80,7 +91,8 @@ export function Home() {
   const visible = WIDGETS.filter((w) => w.sections.includes(section));
   return (
     <main className="mx-auto max-w-7xl space-y-4 p-4">
-      <Header s={s} ea={ea} onUpload={() => setUploading(true)} />
+      <Header s={s} ea={ea} onUpload={() => setUploading(true)} careers={careers} current={career!} onChoose={choose}
+        onRemove={async (k) => { if (confirm('Apagar esta carreira e todos os saves dela deste navegador?')) setSnaps(await removeCareer(careerKey, k)); }} />
       <nav className="flex gap-1 overflow-x-auto border-b border-line">
         {SECTIONS.map((x) => {
           const n = WIDGETS.filter((w) => w.sections.includes(x.id)).length;
@@ -93,7 +105,7 @@ export function Home() {
         })}
       </nav>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {visible.map(({ id, C, wide }) => <div key={id} className={wide ? 'md:col-span-2 xl:col-span-3' : ''}><C s={s} ea={ea} /></div>)}
+        {visible.map(({ id, C, wide }) => <div key={id} className={wide ? 'md:col-span-2 xl:col-span-3' : ''}><C s={s} ea={ea} career={career!} /></div>)}
       </div>
     </main>
   );

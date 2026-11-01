@@ -1,6 +1,7 @@
 'use client';
 import { get, set } from 'idb-keyval';
 import type { CareerSnapshot } from '../career/snapshot';
+import { upsert } from '../career/merge';
 
 /** Guarda os resumos no navegador (IndexedDB). O banco na nuvem entra numa fase seguinte. */
 const KEY = 'fc27:snapshots';
@@ -11,13 +12,20 @@ export async function loadSnapshots(): Promise<CareerSnapshot[]> {
     return all.map((s) => ({
       ...s, matches: s.matches ?? [], transfers: s.transfers ?? [], stats: s.stats ?? [], names: s.names ?? {}, finances: s.finances ?? null,
       morale: s.morale ?? null, scorers: s.scorers ?? [], youth: s.youth ?? [], scouts: s.scouts ?? [],
+      careerKey: s.careerKey ?? '', tactic: s.tactic ?? null, worldTransfers: s.worldTransfers ?? [],
+      club: { ...s.club, popularity: s.club.popularity ?? 0 },
     }));
   } catch { return []; }
 }
 export async function addSnapshot(s: CareerSnapshot) {
-  const all = await loadSnapshots();
-  all.push(s);
-  await set(KEY, all.slice(-30));
+  const all = upsert(await loadSnapshots(), s).slice(-80);
+  await set(KEY, all);
+  return all;
+}
+/** Apaga todos os saves de uma carreira deste navegador. */
+export async function removeCareer(keyOf: (s: CareerSnapshot) => string, key: string) {
+  const all = (await loadSnapshots()).filter((s) => keyOf(s) !== key);
+  await set(KEY, all);
   return all;
 }
 export function parseInWorker(buf: ArrayBuffer): Promise<CareerSnapshot> {

@@ -5,10 +5,11 @@ import { buildTips, starters } from '@/lib/career/tips';
 import { fromYmd, seasonOf } from '@/lib/career/dates';
 import { lineOf, posLabel, xOf } from '@/lib/career/positions';
 import type { Match } from '@/lib/career/snapshot';
-import { Bar, Card, Ovr, Pic, Stat, dateBr, money, timeBr } from './ui';
+import { Bar, Card, Ovr, Pic, Stat, Table, Tabs, dateBr, money, timeBr } from './ui';
+import type { Career } from '@/lib/career/merge';
 import type { Ea } from './names';
 
-type P = { s: CareerSnapshot; ea: Ea };
+type P = { s: CareerSnapshot; ea: Ea; career?: Career };
 
 function Face({ id, ea, size = 28 }: { id: number; ea: Ea; size?: number }) {
   const p = ea.player(id);
@@ -32,6 +33,30 @@ function FormBadge({ r }: { r: 'V' | 'E' | 'D' }) {
 const upcoming = (s: CareerSnapshot) => s.matches.filter((m) => !m.played && m.date >= s.gameDate);
 const results = (s: CareerSnapshot) => s.matches.filter((m) => m.played);
 
+function MatchTable({ list, s, ea }: { list: Match[]; s: CareerSnapshot; ea: Ea }) {
+  return <Table head={['Data', 'Competição', 'Jogo', 'Placar', '']} align={['l', 'l', 'l', 'r', 'r']} rows={list.map((m) => {
+    const r = outcome(m, s.club.id);
+    return [dateBr(m.date), <span key="c" className="text-muted">{m.competition}{m.round ? ` · R${m.round}` : ''}</span>,
+      <span key="j" className="flex items-center gap-1"><Crest id={m.homeId} name={m.homeName} ea={ea} size={14} />{m.homeName} x {m.awayName}<Crest id={m.awayId} name={m.awayName} ea={ea} size={14} /></span>,
+      m.played ? `${m.homeGoals}–${m.awayGoals}` : timeBr(m.time), r ? <FormBadge key="r" r={r} /> : ''];
+  })} />;
+}
+
+function PlayerName({ id, ea, sub }: { id: number; ea: Ea; sub?: React.ReactNode }) {
+  return <span className="flex items-center gap-2"><Face id={id} ea={ea} size={22} /><span><span className="block">{ea.player(id).short}</span>{sub && <span className="block text-[11px] text-muted">{sub}</span>}</span></span>;
+}
+
+/** Tabela do elenco inteiro (janela "Ver tudo" de vários cards). */
+function SquadTable({ s, ea, cols }: { s: CareerSnapshot; ea: Ea; cols: 'geral' | 'papeis' | 'moral' }) {
+  const list = [...s.squad].sort((a, b) => cols === 'moral' ? (a.morale ?? 0) - (b.morale ?? 0) : b.ovr - a.ovr);
+  if (cols === 'moral') return <Table head={['Jogador', 'Moral', 'Desemp. time', 'Desemp. jogador', 'Contrato', 'Tempo de jogo']} align={['l', 'r', 'r', 'r', 'r', 'r']}
+    rows={list.map((p) => [<PlayerName key="n" id={p.id} ea={ea} sub={posLabel(p.pos)} />, p.morale ?? '—', p.moraleTeam ?? '—', p.moralePlayer ?? '—', p.moraleContract ?? '—', p.playingTime ?? '—'])} />;
+  if (cols === 'papeis') return <Table head={['Jogador', 'Pos', 'Papel', 'Contrato até', 'Salário/sem', 'OVR']} align={['l', 'l', 'l', 'r', 'r', 'r']}
+    rows={[...list].sort((a, b) => b.wage - a.wage).map((p) => [<PlayerName key="n" id={p.id} ea={ea} />, posLabel(p.pos), <span key="r" className={p.role ? ROLE_COLOR[p.role] : ''}>{p.role ? ROLE[p.role] : '—'}</span>, p.contractUntil, money(p.wage), <Ovr key="o" v={p.ovr} />])} />;
+  return <Table head={['Jogador', 'Pos', 'Idade', 'OVR', 'POT', 'Contrato', 'Salário/sem', 'Condição']} align={['l', 'l', 'r', 'r', 'r', 'r', 'r', 'r']}
+    rows={list.map((p) => [<PlayerName key="n" id={p.id} ea={ea} sub={p.injured ? '✚ lesionado' : undefined} />, posLabel(p.pos), p.age, <Ovr key="o" v={p.ovr} />, p.pot, p.contractUntil, money(p.wage), p.condition != null ? `${p.condition}%` : '—'])} />;
+}
+
 function PlayerLine({ p, ea, right }: { p: SquadPlayer; ea: Ea; right?: React.ReactNode }) {
   return (
     <li className="flex items-center gap-2 py-1 text-sm">
@@ -46,7 +71,7 @@ function PlayerLine({ p, ea, right }: { p: SquadPlayer; ea: Ea; right?: React.Re
 export function AssistantTips({ s, ea }: P) {
   const tips = buildTips(s, (id) => ea.player(id).short);
   return (
-    <Card title="Dica do auxiliar" help="Alertas calculados a partir do save: contratos de titulares, posições sem reserva, jovens sem minutos e salários altos fora do time." className="border-accent/50">
+    <Card wide title="Dica do auxiliar" help="Alertas calculados a partir do save: contratos de titulares, posições sem reserva, jovens sem minutos e salários altos fora do time." className="border-accent/50">
       {tips.length === 0 ? <p className="text-sm text-muted">Nada urgente no elenco agora.</p> : (
         <ul className="space-y-2 text-sm">
           {tips.map((t, i) => <li key={i} className="flex gap-2"><span className="text-accent">›</span><span>{t.text}</span></li>)}
@@ -66,7 +91,7 @@ export function Calendar({ s, ea }: P) {
   const games = s.matches.filter((m) => week.includes(m.date));
   const back = s.squad.filter((p) => p.injuryReturn && week.includes(p.injuryReturn));
   return (
-    <Card title="Calendário" help="Data do jogo e os próximos 7 dias, com os jogos do seu clube e a volta de lesionados.">
+    <Card title="Calendário" help="Data do jogo e os próximos 7 dias, com os jogos do seu clube e a volta de lesionados. Em Ver tudo, a temporada inteira." more={() => <MatchTable list={s.matches} s={s} ea={ea} />}>
       <p className="mb-3 text-sm"><span className="mr-2 text-xs font-semibold text-accent">HOJE</span>{d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })}</p>
       <div className="grid grid-cols-7 gap-1">
         {days.map((x, i) => {
@@ -132,7 +157,7 @@ export function Results({ s, ea }: P) {
   const all = results(s).map((m) => outcome(m, s.club.id)!);
   const n = (r: string) => all.filter((x) => x === r).length;
   return (
-    <Card title="Resultados" help="Últimos jogos do clube na temporada (todas as competições) e o retrospecto.">
+    <Card title="Resultados" help="Últimos jogos do clube na temporada (todas as competições) e o retrospecto." more={() => <MatchTable list={results(s).reverse()} s={s} ea={ea} />}>
       <div className="mb-3 flex items-center gap-1">{all.slice(-5).map((r, i) => <FormBadge key={i} r={r} />)}<span className="ml-auto text-xs text-muted">{n('V')}V {n('E')}E {n('D')}D</span></div>
       <ul className="space-y-2">
         {list.map((m, i) => {
@@ -153,10 +178,10 @@ export function Results({ s, ea }: P) {
 }
 
 export function Fixtures({ s, ea }: P) {
-  const list = upcoming(s).slice(0, 6);
+  const list = upcoming(s).slice(0, 8);
   if (!list.length) return <Card title="Próximos jogos" empty="Nenhum jogo marcado." />;
   return (
-    <Card title="Próximos jogos" help="Os próximos jogos do calendário, em todas as competições.">
+    <Card title="Próximos jogos" help="Os próximos jogos do calendário, em todas as competições." more={() => <MatchTable list={upcoming(s)} s={s} ea={ea} />}>
       <ul className="space-y-2">
         {list.map((m, i) => {
           const home = m.homeId === s.club.id;
@@ -179,12 +204,15 @@ export function Fixtures({ s, ea }: P) {
 export function Availability({ s, ea }: P) {
   const injured = s.squad.filter((p) => p.injured);
   const tired = s.squad.filter((p) => !p.injured && p.condition != null && p.condition < 85).sort((a, b) => a.condition! - b.condition!);
+  const all = [...s.squad].filter((p) => p.condition != null).sort((a, b) => Number(b.injured) - Number(a.injured) || a.condition! - b.condition!);
   return (
-    <Card title="Lesões" help="Lesionados com a data prevista de volta e jogadores com condição física baixa (abaixo de 85%).">
+    <Card title="Departamento médico" help="Lesionados com a data prevista de volta e jogadores com condição física baixa (abaixo de 85%)."
+      more={all.length ? () => <Table head={['Jogador', 'Pos', 'Condição', 'Situação']} align={['l', 'l', 'r', 'l']}
+        rows={all.map((p) => [<PlayerName key="n" id={p.id} ea={ea} />, posLabel(p.pos), `${p.condition}%`, p.injured ? <span key="i" className="text-bad">✚ volta {p.injuryReturn ? dateBr(p.injuryReturn) : '?'}</span> : p.condition! < 85 ? <span key="c" className="text-mid">cansado</span> : 'ok'])} /> : undefined}>
       {!injured.length && !tired.length ? <p className="text-sm text-muted">Ninguém lesionado ou cansado.</p> : (
         <ul>
           {injured.map((p) => <PlayerLine key={p.id} p={p} ea={ea} right={<span className="text-xs text-bad">✚ volta {p.injuryReturn ? dateBr(p.injuryReturn).slice(0, 5) : '?'}</span>} />)}
-          {tired.slice(0, 5).map((p) => <PlayerLine key={p.id} p={p} ea={ea} right={<span className="text-xs text-mid">condição {p.condition}%</span>} />)}
+          {tired.slice(0, 8).map((p) => <PlayerLine key={p.id} p={p} ea={ea} right={<span className="text-xs text-mid">condição {p.condition}%</span>} />)}
         </ul>
       )}
     </Card>
@@ -195,39 +223,59 @@ export function Discipline({ s, ea }: P) {
   const banned = s.squad.filter((p) => (p.banGames ?? 0) > 0);
   const yellow = s.squad.filter((p) => (p.yellows ?? 0) > 0 && !(p.banGames ?? 0)).sort((a, b) => b.yellows! - a.yellows!);
   return (
-    <Card title="Cartões e suspensões" help="Suspensos e jogadores com amarelos acumulados, por competição somada.">
+    <Card title="Disponibilidade" help="Suspensos e jogadores pendurados com amarelos acumulados."
+      more={banned.length + yellow.length > 8 ? () => <Table head={['Jogador', 'Amarelos', 'Suspensão']} align={['l', 'r', 'r']} rows={[...banned, ...yellow].map((p) => [<PlayerName key="n" id={p.id} ea={ea} />, p.yellows ?? 0, p.banGames ? `${p.banGames} jogo(s)` : '—'])} /> : undefined}>
       {!banned.length && !yellow.length ? <p className="text-sm text-muted">Nenhum suspenso ou pendurado.</p> : (
         <ul>
           {banned.map((p) => <PlayerLine key={p.id} p={p} ea={ea} right={<span className="text-xs text-bad">■ suspenso {p.banGames} jogo{p.banGames! > 1 ? 's' : ''}</span>} />)}
-          {yellow.map((p) => <PlayerLine key={p.id} p={p} ea={ea} right={<span className="flex items-center gap-1 text-xs"><span className="inline-block h-3 w-2 rounded-[2px] bg-mid" />{p.yellows}</span>} />)}
+          {yellow.slice(0, 8).map((p) => <PlayerLine key={p.id} p={p} ea={ea} right={<span className="flex items-center gap-1 text-xs"><span className="inline-block h-3 w-2 rounded-[2px] bg-mid" />{p.yellows}</span>} />)}
         </ul>
       )}
     </Card>
   );
 }
 
-export function Transfers({ s, ea }: P) {
-  const list = s.transfers.slice(0, 6);
-  if (!list.length) return <Card title="Transferências" help="Transferências recentes registradas no save." empty="Nenhuma transferência registrada no save." />;
+function TransferRow({ t, s, ea, fee = true }: { t: { date: number; playerId: number; fromId: number; fromName: string; toId: number; toName: string; fee?: number }; s: CareerSnapshot; ea: Ea; fee?: boolean }) {
+  const mine = t.toId === s.club.id || t.fromId === s.club.id;
   return (
-    <Card title="Transferências" help="Transferências recentes que o jogo guarda no save. As do seu clube aparecem destacadas. O histórico completo vai crescer comparando os saves que você enviar.">
-      <ul className="space-y-2">
-        {list.map((t, i) => {
-          const mine = t.toId === s.club.id || t.fromId === s.club.id;
-          return (
-            <li key={i} className={`flex items-center gap-2 rounded p-1 text-sm ${mine ? 'bg-accent/15' : ''}`}>
-              <Face id={t.playerId} ea={ea} size={28} />
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-semibold">{ea.player(t.playerId).short}</div>
-                <div className="flex items-center gap-1 truncate text-[11px] text-muted">
-                  <Crest id={t.fromId} name={t.fromName} ea={ea} size={12} />{t.fromName} → <Crest id={t.toId} name={t.toName} ea={ea} size={12} />{t.toName}
-                </div>
-              </div>
-              <div className="text-right"><div className="text-xs font-semibold tabular-nums">{t.fee ? money(t.fee) : 'Livre'}</div><div className="text-[10px] text-muted">{dateBr(t.date).slice(0, 5)}</div></div>
-            </li>
-          );
-        })}
-      </ul>
+    <li className={`flex items-center gap-2 rounded p-1 text-sm ${mine ? 'bg-accent/15' : ''}`}>
+      <Face id={t.playerId} ea={ea} size={28} />
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-semibold">{ea.player(t.playerId).short}</div>
+        <div className="flex items-center gap-1 truncate text-[11px] text-muted">
+          <Crest id={t.fromId} name={t.fromName} ea={ea} size={12} />{t.fromName} → <Crest id={t.toId} name={t.toName} ea={ea} size={12} />{t.toName}
+        </div>
+      </div>
+      <div className="text-right">{fee && <div className="text-xs font-semibold tabular-nums">{t.fee ? money(t.fee) : 'Livre'}</div>}<div className="text-[10px] text-muted">{dateBr(t.date).slice(0, 5)}</div></div>
+    </li>
+  );
+}
+
+/** Mercado: as transferências pelo mundo que o save registra. */
+export function TransferMarket({ s, ea }: P) {
+  const deals = s.transfers.filter((t) => t.toId !== s.club.id && t.fromId !== s.club.id);
+  const world = s.worldTransfers ?? [];
+  const list = [...deals.map((t) => ({ ...t, hasFee: true })), ...world.filter((w) => !deals.some((d) => d.playerId === w.playerId)).map((t) => ({ ...t, fee: 0, hasFee: false }))]
+    .sort((a, b) => b.date - a.date);
+  if (!list.length) return <Card title="Mercado de transferências" help="Transferências entre outros clubes registradas no save." empty="Nenhuma transferência registrada neste save. Aparece quando os clubes negociam." />;
+  return (
+    <Card title="Mercado de transferências" help="Transferências entre outros clubes que o save registra (o jogo guarda só as mais recentes; o app acumula as de todos os saves da carreira)."
+      more={() => <Table head={['Data', 'Jogador', 'De', 'Para', 'Valor']} align={['l', 'l', 'l', 'l', 'r']} rows={list.map((t) => [dateBr(t.date), <PlayerName key="n" id={t.playerId} ea={ea} />, t.fromName, t.toName, t.hasFee ? (t.fee ? money(t.fee) : 'Livre') : '—'])} />}>
+      <ul className="space-y-1">{list.slice(0, 7).map((t, i) => <TransferRow key={i} t={t} s={s} ea={ea} fee={t.hasFee} />)}</ul>
+    </Card>
+  );
+}
+
+export function Transfers({ s, ea }: P) {
+  const list = s.transfers.filter((t) => t.toId === s.club.id || t.fromId === s.club.id);
+  if (!list.length) return <Card title="Transferências da temporada" help="Contratações e vendas do seu clube." empty="Seu clube ainda não fez negócios nesta temporada." />;
+  const spent = list.filter((t) => t.toId === s.club.id).reduce((a, t) => a + t.fee, 0);
+  const got = list.filter((t) => t.fromId === s.club.id).reduce((a, t) => a + t.fee, 0);
+  return (
+    <Card title="Transferências da temporada" help="Contratações e vendas do seu clube, com valor e salário."
+      more={() => <Table head={['Data', 'Jogador', 'De', 'Para', 'Valor', 'Salário/sem']} align={['l', 'l', 'l', 'l', 'r', 'r']} rows={list.map((t) => [dateBr(t.date), <PlayerName key="n" id={t.playerId} ea={ea} />, t.fromName, t.toName, t.fee ? money(t.fee) : 'Livre', t.wage ? money(t.wage) : '—'])} />}>
+      <div className="mb-2 flex gap-4 text-xs"><span>Gasto <b className="text-bad">{money(spent)}</b></span><span>Recebido <b className="text-good">{money(got)}</b></span></div>
+      <ul className="space-y-1">{list.slice(0, 6).map((t, i) => <TransferRow key={i} t={t} s={s} ea={ea} />)}</ul>
     </Card>
   );
 }
@@ -240,8 +288,17 @@ export function LeaguePosition({ s, ea }: P) {
   const from = Math.max(0, Math.min(i - 3, t.rows.length - 7));
   const rows = t.rows.slice(from, from + 7);
   const league = s.standings.find((x) => x.isLeague);
+  const full = () => (
+    <div className="space-y-6">{s.standings.map((st) => (
+      <div key={st.stageId}>
+        <h3 className="mb-2 text-sm font-semibold">{st.title}</h3>
+        <Table head={['#', 'Time', 'J', 'V', 'E', 'D', 'GP', 'GC', 'SG', 'Pts']} align={['l', 'l', 'r', 'r', 'r', 'r', 'r', 'r', 'r', 'r']}
+          rows={st.rows.map((r, k) => [k + 1, <span key="t" className={`flex items-center gap-2 ${r.teamId === s.club.id ? 'font-bold text-accent' : ''}`}><Crest id={r.teamId} name={r.name} ea={ea} size={16} />{r.name}</span>, r.played, r.won, r.drawn, r.lost, r.gf, r.ga, r.gf - r.ga, <b key="p">{r.points}</b>])} />
+      </div>
+    ))}</div>
+  );
   return (
-    <Card title="Posição na liga" help="Tabela em volta do seu clube. Antes da liga começar, mostra a competição que já está em andamento (ex.: pré-temporada).">
+    <Card title="Posição na liga" help="Tabela em volta do seu clube. Antes da liga começar, mostra a competição que já está em andamento (ex.: pré-temporada)." more={full}>
       <p className="mb-2 text-xs text-muted">{t.title}{league && !league.rows.some((r) => r.played) && t !== league ? ` · ${league.title} ainda não começou` : ''}</p>
       <table className="w-full text-sm tabular-nums">
         <thead className="text-[11px] text-muted"><tr><th className="text-left">#</th><th className="text-left">Time</th><th>J</th><th>SG</th><th>Pts</th></tr></thead>
@@ -251,10 +308,7 @@ export function LeaguePosition({ s, ea }: P) {
             return (
               <tr key={r.teamId} className={me ? 'bg-accent/15 font-semibold' : ''}>
                 <td className="py-1 pl-1">{from + k + 1}</td>
-                <td className="flex items-center gap-2 py-1">
-                  <Crest id={r.teamId} name={r.name} ea={ea} size={16} />
-                  <span className="truncate">{r.name}</span>
-                </td>
+                <td className="flex items-center gap-2 py-1"><Crest id={r.teamId} name={r.name} ea={ea} size={16} /><span className="truncate">{r.name}</span></td>
                 <td className="text-center">{r.played}</td>
                 <td className="text-center">{r.gf - r.ga > 0 ? '+' : ''}{r.gf - r.ga}</td>
                 <td className="text-center">{r.points}</td>
@@ -263,6 +317,7 @@ export function LeaguePosition({ s, ea }: P) {
           })}
         </tbody>
       </table>
+      {(() => { const form = results(s).filter((m) => m.competition === t.title).slice(-5).map((m) => outcome(m, s.club.id)!); return form.length ? <div className="mt-3 flex items-center gap-1 text-xs text-muted">Forma {form.map((r, k) => <FormBadge key={k} r={r} />)}</div> : null; })()}
     </Card>
   );
 }
@@ -279,24 +334,48 @@ export function TeamPower({ s }: P) {
 }
 
 export function StartingXI({ s, ea }: P) {
+  const tac = s.tactic;
+  const byId = new Map(s.squad.map((p) => [p.id, p]));
+  const xi = tac?.players.length === 11 ? tac.players : null;
+  const avg = (ids: number[]) => Math.round(ids.reduce((a, id) => a + (byId.get(id)?.ovr ?? 0), 0) / Math.max(1, ids.length));
+  return (
+    <Card title="Escalação" help="Os titulares da tática salva no jogo, na posição do campo. Embaixo, o OVR médio por linha."
+      more={xi ? () => <Table head={['Jogador', 'Posição', 'OVR']} align={['l', 'l', 'r']} rows={xi.map((p) => [<PlayerName key="n" id={p.playerId} ea={ea} />, posLabel(p.pos), <Ovr key="o" v={byId.get(p.playerId)?.ovr ?? 0} />])} /> : undefined}>
+      {tac && <p className="mb-2 text-xs text-muted">{tac.formation} · {tac.name}</p>}
+      {xi ? (
+        <div className="relative mx-auto h-[330px] max-w-[320px] rounded-md bg-gradient-to-b from-[#1d4d2b] to-[#163c22]">
+          {xi.map((p) => {
+            const pl = byId.get(p.playerId);
+            return (
+              <div key={p.playerId} className="absolute flex w-16 -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center" style={{ left: `${p.x * 100}%`, top: `${92 - p.y * 84}%` }}>
+                <div className="relative"><Face id={p.playerId} ea={ea} size={32} />{pl && <span className="absolute -right-3 -top-1"><Ovr v={pl.ovr} /></span>}</div>
+                <span className="mt-0.5 w-full truncate text-[10px] font-semibold">{ea.player(p.playerId).short}{p.playerId === tac!.captain ? ' (C)' : ''}</span>
+              </div>
+            );
+          })}
+        </div>
+      ) : <LegacyXI s={s} ea={ea} />}
+      {xi && <p className="mt-2 text-center text-[11px] text-muted">OVR médio dos titulares <b className="text-white">{avg(xi.map((p) => p.playerId))}</b></p>}
+    </Card>
+  );
+}
+
+function LegacyXI({ s, ea }: P) {
   const xi = starters(s);
   const rows = (['ATA', 'MEI', 'DEF', 'GOL'] as const).map((l) => xi.filter((p) => lineOf(p.slot < 28 ? p.slot : p.pos) === l).sort((a, b) => xOf(a.slot < 28 ? a.slot : a.pos) - xOf(b.slot < 28 ? b.slot : b.pos)));
   return (
-    <Card title="Escalação" help="Os titulares que estão no time salvo no jogo, por linha.">
-      <div className="space-y-3 rounded-md bg-gradient-to-b from-[#1d4d2b] to-[#163c22] p-3">
-        {rows.map((r, i) => (
-          <div key={i} className="flex justify-center gap-3">
-            {r.map((p) => (
-              <div key={p.id} className="flex w-16 flex-col items-center text-center">
-                <div className="relative"><Face id={p.id} ea={ea} size={36} /><span className="absolute -right-3 -top-1"><Ovr v={p.ovr} /></span></div>
-                <span className="mt-1 w-full truncate text-[11px] font-semibold">{ea.player(p.id).short}{p.id === s.club.captainId ? ' (C)' : ''}</span>
-                <span className="text-[10px] text-white/60">{posLabel(p.slot < 28 ? p.slot : p.pos)}</span>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    </Card>
+    <div className="space-y-3 rounded-md bg-gradient-to-b from-[#1d4d2b] to-[#163c22] p-3">
+      {rows.map((r, i) => (
+        <div key={i} className="flex justify-center gap-3">
+          {r.map((p) => (
+            <div key={p.id} className="flex w-16 flex-col items-center text-center">
+              <div className="relative"><Face id={p.id} ea={ea} size={32} /><span className="absolute -right-3 -top-1"><Ovr v={p.ovr} /></span></div>
+              <span className="mt-1 w-full truncate text-[11px] font-semibold">{ea.player(p.id).short}</span>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -307,15 +386,17 @@ export function SquadOverview({ s, ea }: P) {
   const best = s.squad[0];
   const bestPot = [...s.squad].sort((a, b) => b.pot - a.pot)[0];
   const nations = new Set(s.squad.map((p) => p.nationality)).size;
+  const wages = s.squad.reduce((a, p) => a + p.wage, 0);
   return (
-    <Card title="Elenco" help="Tamanho do elenco, idade média, sub-21, melhor jogador e maior potencial.">
+    <Card title="Elenco" help="Tamanho do elenco, idade média, sub-21, melhor jogador e maior potencial. Em Ver tudo, o elenco inteiro." more={() => <SquadTable s={s} ea={ea} cols="geral" />}>
       <Stat label="Jogadores" value={n} />
       <Stat label="Idade média" value={avgAge.toFixed(1).replace('.', ',')} />
       <Stat label="Sub-21" value={u21} />
       <Stat label="Nacionalidades" value={nations} />
+      <Stat label="Folha salarial (semana)" value={money(wages)} />
       <ul className="mt-2 border-t border-line pt-2">
-        {best && <PlayerLine p={best} ea={ea} right={<><span className="text-xs text-muted">melhor</span><Ovr v={best.ovr} /></>} />}
-        {bestPot && <PlayerLine p={bestPot} ea={ea} right={<><span className="text-xs text-muted">potencial</span><Ovr v={bestPot.pot} /></>} />}
+        {best && <PlayerLine p={best} ea={ea} right={<><span className="text-xs text-muted">melhor jogador</span><Ovr v={best.ovr} /></>} />}
+        {bestPot && <PlayerLine p={bestPot} ea={ea} right={<><span className="text-xs text-muted">maior potencial</span><Ovr v={bestPot.pot} /></>} />}
       </ul>
     </Card>
   );
@@ -324,11 +405,14 @@ export function SquadOverview({ s, ea }: P) {
 export function Contracts({ s, ea }: P) {
   const season = seasonOf(fromYmd(s.gameDate));
   const list = s.squad.filter((p) => p.contractUntil <= season.end + 1).sort((a, b) => a.contractUntil - b.contractUntil || b.ovr - a.ovr);
+  const all = [...s.squad].sort((a, b) => a.contractUntil - b.contractUntil || b.ovr - a.ovr);
   return (
-    <Card title="Contratos acabando" help={`Jogadores com contrato até ${season.end} (fim desta temporada) ou ${season.end + 1}.`}>
+    <Card title="Contratos acabando" help={`Jogadores com contrato até ${season.end} (fim desta temporada) ou ${season.end + 1}.`}
+      more={() => <Table head={['Jogador', 'Pos', 'Idade', 'Contrato até', 'Salário/sem', 'OVR']} align={['l', 'l', 'r', 'r', 'r', 'r']} rows={all.map((p) => [<PlayerName key="n" id={p.id} ea={ea} />, posLabel(p.pos), p.age, <span key="c" className={p.contractUntil <= season.end ? 'text-bad' : p.contractUntil <= season.end + 1 ? 'text-mid' : ''}>{p.contractUntil}</span>, money(p.wage), <Ovr key="o" v={p.ovr} />])} />}>
+      <div className="mb-2 flex items-baseline gap-2"><span className="text-4xl font-bold">{list.length}</span><span className="text-xs text-muted">contratos acabam em {season.end + 1} ou antes</span></div>
       {list.length === 0 ? <p className="text-sm text-muted">Nenhum contrato vence nas próximas duas temporadas.</p> : (
-        <ul>{list.slice(0, 8).map((p) => (
-          <PlayerLine key={p.id} p={p} ea={ea} right={<><span className={`text-xs ${p.contractUntil <= season.end ? 'text-bad' : 'text-mid'}`}>{p.contractUntil}</span><Ovr v={p.ovr} /></>} />
+        <ul>{list.slice(0, 7).map((p) => (
+          <PlayerLine key={p.id} p={p} ea={ea} right={<><span className={`text-xs ${p.contractUntil <= season.end ? 'text-bad' : 'text-mid'}`}>até {p.contractUntil}</span><Ovr v={p.ovr} /></>} />
         ))}</ul>
       )}
     </Card>
@@ -349,28 +433,65 @@ export function Wages({ s, ea }: P) {
 
 const stars = (n: number) => '★'.repeat(Math.round(n / 2)).padEnd(5, '☆');
 
-export function Club({ s }: P) {
+export function Club({ s, ea }: P) {
   const c = s.club;
+  const ten = (n: number) => `${n}/10`;
   return (
-    <Card title="Clube" help="Prestígio, rival, estádio e histórico do clube no banco do jogo.">
-      <Stat label="Prestígio nacional" value={<span className="text-mid">{stars(c.domesticPrestige)}</span>} />
-      <Stat label="Prestígio internacional" value={<span className="text-mid">{stars(c.internationalPrestige)}</span>} />
-      <Stat label="Categoria de base" value={<span className="text-mid">{stars(c.youthDevelopment)}</span>} />
-      <Stat label="Rival" value={c.rivalName} />
+    <Card title="Clube" help="Valor, prestígio, popularidade, categoria de base, rival e títulos, do banco do jogo.">
+      <Stat label="Valor do clube" value={c.clubWorth ? money(c.clubWorth * 1000) : '—'} />
+      <Stat label="Prestígio nacional" value={ten(c.domesticPrestige)} />
+      <Stat label="Prestígio internacional" value={ten(c.internationalPrestige)} />
+      {c.popularity > 0 && <Stat label="Popularidade" value={ten(c.popularity)} />}
+      <Stat label="Categoria de base" value={ten(c.youthDevelopment)} />
+      <Stat label="Rival" value={<span className="flex items-center gap-1"><Crest id={c.rivalId} name={c.rivalName} ea={ea} size={16} />{c.rivalName}</span>} />
       <Stat label="Estádio" value={`${c.stadiumCapacity.toLocaleString('pt-BR')} lugares`} />
-      <Stat label="Títulos (liga / copas)" value={`${c.leagueTitles} / ${c.domesticCups}`} />
-      <Stat label="Posição na última liga" value={c.prevPosition ? `${c.prevPosition}º` : '—'} />
-      <Stat label="Fundação" value={c.founded} />
+      <div className="mt-3 grid grid-cols-3 gap-2 border-t border-line pt-3 text-center">
+        <div><div className="text-2xl font-bold">{c.leagueTitles}</div><div className="text-[10px] text-muted">Títulos da liga</div></div>
+        <div><div className="text-2xl font-bold">{c.domesticCups}</div><div className="text-[10px] text-muted">Copas nacionais</div></div>
+        <div><div className="text-2xl font-bold">{c.prevPosition ? `${c.prevPosition}º` : '—'}</div><div className="text-[10px] text-muted">Última liga</div></div>
+      </div>
     </Card>
   );
 }
 
+const BUILD_UP = ['Equilibrada', 'Jogo curto', 'Bola longa', 'Contra-ataque rápido'];
+
 export function SetPieces({ s, ea }: P) {
-  const c = s.club;
-  const row = (label: string, id: number) => <Stat label={label} value={id > 0 ? ea.player(id).short : '—'} />;
+  const t = s.tactic;
+  const byId = new Map(s.squad.map((p) => [p.id, p]));
+  if (!t) {
+    const c = s.club;
+    const row = (label: string, id: number) => <Stat label={label} value={id > 0 ? ea.player(id).short : '—'} />;
+    return <Card title="Tática e bolas paradas" help="Capitão e cobradores definidos no time salvo.">{row('Capitão', c.captainId)}{row('Pênaltis', c.penaltyTakerId)}{row('Faltas', c.freeKickTakerId)}{row('Escanteios', c.cornerTakerId)}</Card>;
+  }
+  const row = (label: string, ids: number[]) => {
+    const list = [...new Set(ids.filter((x) => x > 0))];
+    return (
+      <li className="flex items-center gap-2 border-b border-line/60 py-1.5 text-sm">
+        <span className="w-36 text-[11px] font-semibold uppercase text-muted">{label}</span>
+        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3">{list.length ? list.map((id) => <span key={id} className="flex items-center gap-1"><Face id={id} ea={ea} size={20} />{ea.player(id).short}</span>) : '—'}</span>
+        {list[0] && byId.get(list[0]) && <Ovr v={byId.get(list[0])!.ovr} />}
+      </li>
+    );
+  };
   return (
-    <Card title="Bolas paradas" help="Capitão e cobradores definidos no time salvo.">
-      {row('Capitão', c.captainId)}{row('Pênaltis', c.penaltyTakerId)}{row('Faltas', c.freeKickTakerId)}{row('Escanteios', c.cornerTakerId)}
+    <Card wide title="Tática e bolas paradas" help="A tática salva no jogo: formação, capitão, cobradores de bola parada, apoio nos escanteios, profundidade defensiva, saída de bola e o código para compartilhar a tática.">
+      <p className="mb-3 text-xs text-muted">{t.formation} · {t.name}</p>
+      <ul>
+        {row('Capitão', [t.captain])}
+        {row('Pênaltis', [t.penalties])}
+        {row('Faltas E / D', [t.freeKickL, t.freeKickR])}
+        {row('Escanteios E / D', [t.cornerL, t.cornerR])}
+        {row('Faltas longas', [t.longKick])}
+        {row('Lateral esquerdo', [t.throwL])}
+        {row('Lateral direito', [t.throwR])}
+        {row('Apoio no escanteio', t.cornerSupport)}
+      </ul>
+      <div className="mt-3 grid grid-cols-2 gap-x-6 text-sm sm:grid-cols-3">
+        <Stat label="Profundidade defensiva" value={t.defensiveDepth} />
+        <Stat label="Saída de bola" value={BUILD_UP[t.buildUp] ?? t.buildUp} />
+        {t.code && <Stat label="Código da tática" value={<span className="flex items-center gap-2 font-mono">{t.code}<button className="rounded border border-line px-1.5 text-[11px] text-muted hover:text-white" onClick={() => navigator.clipboard?.writeText(t.code)}>Copiar</button></span>} />}
+      </div>
     </Card>
   );
 }
@@ -399,7 +520,7 @@ export function SquadMorale({ s, ea }: P) {
   if (!m) return <Card title="Moral do elenco" empty="Este save não trouxe a moral do elenco." />;
   const low = s.squad.filter((p) => p.morale != null).sort((a, b) => a.morale! - b.morale!).slice(0, 3);
   return (
-    <Card title="Moral do elenco" help="Média da moral do elenco e o que pesa nela: desempenho do time, do jogador, contrato e tempo de jogo. Abaixo, os 3 mais insatisfeitos.">
+    <Card title="Moral do elenco" help="Média da moral do elenco e o que pesa nela: desempenho do time, do jogador, contrato e tempo de jogo. Abaixo, os 3 mais insatisfeitos." more={() => <SquadTable s={s} ea={ea} cols="moral" />}>
       <div className="mb-2 flex items-baseline gap-2"><span className="text-4xl font-bold">{m.average}</span><span className="text-xs text-muted">média do elenco</span></div>
       <Stat label="Desempenho do time" value={m.teamPerformance} />
       <Stat label="Desempenho do jogador" value={m.playerPerformance} />
@@ -416,9 +537,9 @@ export function SquadRoles({ s, ea }: P) {
   if (!counts.some(Boolean)) return <Card title="Papéis e salários" empty="Este save não trouxe os papéis do elenco." />;
   const season = seasonOf(fromYmd(s.gameDate));
   const months = (until: number) => Math.max(0, (until - season.start) * 12 - ((fromYmd(s.gameDate).getUTCMonth() + 6) % 12));
-  const top = [...s.squad].sort((a, b) => b.wage - a.wage).slice(0, 6);
+  const top = [...s.squad].sort((a, b) => b.wage - a.wage).slice(0, 5);
   return (
-    <Card title="Papéis e salários" help="Quantos jogadores há em cada papel prometido (crucial, importante, rodízio, esporádico, promessa) e os maiores salários, com o fim do contrato.">
+    <Card title="Papéis e salários" help="Quantos jogadores há em cada papel prometido (crucial, importante, rodízio, esporádico, promessa) e os maiores salários, com o fim do contrato." more={() => <SquadTable s={s} ea={ea} cols="papeis" />}>
       <div className="mb-3 grid grid-cols-5 gap-1 text-center">
         {counts.map((n, i) => <div key={i}><div className="text-xl font-bold">{n}</div><div className="text-[10px] text-muted">{ROLE[i + 1]}</div></div>)}
       </div>
@@ -436,6 +557,22 @@ export function SquadRoles({ s, ea }: P) {
   );
 }
 
+/** Tipos de movimentação do módulo tfnm. 13, 16 e 18 conferidos com o CM Tracker; 7, 9 e 11 aparecem em dias de jogo em casa (palpite). */
+const TX: Record<number, { label: string; sign: 1 | -1 | 0 }> = {
+  13: { label: 'Merchandising', sign: 1 }, 16: { label: 'Salários dos jogadores', sign: -1 }, 18: { label: 'Salários da comissão', sign: -1 },
+  7: { label: 'Renda de jogo em casa', sign: 1 }, 9: { label: 'Custos de dia de jogo', sign: -1 }, 11: { label: 'Prêmio / bônus', sign: 0 },
+};
+function TxLine({ t }: { t: { date: number; amount: number; type: number } }) {
+  const k = TX[t.type] ?? { label: `Movimentação (tipo ${t.type})`, sign: 0 };
+  return (
+    <li className="flex items-center gap-2 py-1 text-sm">
+      <span className="text-muted">{k.sign > 0 ? '↙' : '↗'}</span>
+      <div className="flex-1"><div>{k.label}</div><div className="text-[11px] text-muted">{dateBr(t.date)}</div></div>
+      <span className={`font-semibold tabular-nums ${k.sign > 0 ? 'text-good' : k.sign < 0 ? 'text-bad' : ''}`}>{k.sign > 0 ? '+' : k.sign < 0 ? '−' : ''}{money(t.amount)}</span>
+    </li>
+  );
+}
+
 export function ClubFinances({ s }: P) {
   const f = s.finances;
   if (!f) return <Card title="Finanças" empty="Este save não trouxe o orçamento do clube." />;
@@ -443,7 +580,8 @@ export function ClubFinances({ s }: P) {
   const pct = f.initialBudget ? Math.round((f.currentBudget / f.initialBudget - 1) * 100) : 0;
   const wages = s.squad.reduce((a, p) => a + p.wage, 0);
   return (
-    <Card title="Finanças" help="Orçamento de transferências no início da temporada, quanto já foi usado e os principais gastos. Valores do save, iguais aos da tela de orçamento do jogo.">
+    <Card title="Finanças" help="Orçamento de transferências no início da temporada, quanto já foi usado, os principais gastos e as últimas movimentações do clube."
+      more={f.transactions?.length ? () => <ul>{f.transactions!.map((t, i) => <TxLine key={i} t={t} />)}</ul> : undefined}>
       <div className="mb-1 flex items-baseline justify-between"><span className="text-xs text-muted">Orçamento atual</span><span className={`text-xs ${pct < 0 ? 'text-bad' : 'text-good'}`}>{pct > 0 ? '+' : ''}{pct}%</span></div>
       <div className="title mb-2 text-3xl">{money(f.currentBudget)}</div>
       <div className="mb-1 h-2 overflow-hidden rounded bg-card-2"><div className="h-full bg-accent" style={{ width: `${Math.min(100, (f.currentBudget / Math.max(1, f.initialBudget)) * 100)}%` }} /></div>
@@ -451,6 +589,10 @@ export function ClubFinances({ s }: P) {
       <Stat label="Compra de atletas" value={<span className="text-bad">−{money(f.spentOnPlayers)}</span>} />
       <Stat label="Aumentos salariais" value={<span className="text-bad">−{money(f.wageRaises)}</span>} />
       <Stat label="Folha do elenco (semana)" value={money(wages)} />
+      {!!f.transactions?.length && <>
+        <p className="mt-2 border-t border-line pt-2 text-[11px] font-semibold text-muted">ÚLTIMAS MOVIMENTAÇÕES</p>
+        <ul>{f.transactions.slice(0, 4).map((t, i) => <TxLine key={i} t={t} />)}</ul>
+      </>}
     </Card>
   );
 }
@@ -490,7 +632,9 @@ export function SeasonLeaders({ s, ea }: P) {
     const g = top((x) => x.goals), a = top((x) => x.assists), m = top((x) => x.apps), cs = top((x) => x.cleanSheets), p = top((x) => x.potm);
     const r = top((x) => x.avgRating, all.filter((x) => x.apps >= minApps));
     return (
-      <Card title="Destaques da temporada" help="Líderes do seu time somando as competições oficiais da temporada (sem amistosos e pré-temporada).">
+      <Card title="Destaques da temporada" help="Líderes do seu time somando as competições oficiais da temporada (sem amistosos e pré-temporada). MC = melhor em campo."
+        more={() => <Table head={['Jogador', 'J', 'Min', 'G', 'A', 'Sem sofrer', 'MC', 'Amar.', 'Nota']} align={['l', 'r', 'r', 'r', 'r', 'r', 'r', 'r', 'r']}
+        rows={[...all].sort((a, b) => b.goals - a.goals || b.apps - a.apps).map((x) => [<PlayerName key="n" id={x.playerId} ea={ea} sub={undefined} />, x.apps, x.minutes, x.goals, x.assists, x.cleanSheets, x.potm, x.yellows, nota(x.avgRating)])} />}>
         <ul>
           {row('Artilheiro', g?.playerId, g?.goals)}
           {row('Assistências', a?.playerId, a?.assists)}
@@ -536,14 +680,16 @@ export function GoldenBoot({ s, ea }: P) {
   const teamName = new Map(s.standings.flatMap((x) => x.rows.map((r) => [r.teamId, r.name] as const)));
   const minApps = Math.max(1, Math.ceil(Math.max(...c.players.map((x) => x.apps)) / 3));
   const list = [...c.players].filter((x) => t.id !== 'rating' || x.apps >= minApps).filter((x) => t.f(x) > 0)
-    .sort((a, b) => t.f(b) - t.f(a) || a.apps - b.apps).slice(0, 10);
+    .sort((a, b) => t.f(b) - t.f(a) || a.apps - b.apps).slice(0, 5);
   return (
     <Card title="Corrida da artilharia" help={`Líderes de ${c.competition}${c.isLeague ? ' (todos os times)' : ' (seu time)'}. Nota média só para quem tem ${minApps}+ jogos.`}
       action={comps.length > 1 ? (
         <select value={ci} onChange={(e) => setCi(+e.target.value)} className="rounded border border-line bg-card-2 px-1 py-0.5 text-xs">
           {comps.map((x, i) => <option key={x.competitionId} value={i}>{x.competition}</option>)}
         </select>
-      ) : <span className="text-xs text-muted">{c.competition}</span>}>
+      ) : <span className="text-xs text-muted">{c.competition}</span>}
+      more={() => <Table head={['Jogador', 'J', 'Min', 'G', 'A', 'Sem sofrer', 'MC', 'Amar.', 'Nota']} align={['l', 'r', 'r', 'r', 'r', 'r', 'r', 'r', 'r']}
+        rows={[...c.players].sort((a, b) => b.goals - a.goals || b.apps - a.apps).map((x) => [<PlayerName key="n" id={x.playerId} ea={ea} sub={teamName.get(x.teamId) ?? (x.teamId === s.club.id ? s.club.name : '')} />, x.apps, x.minutes, x.goals, x.assists, x.cleanSheets, x.potm, x.yellows, nota(x.avgRating)])} />}>
       <div className="mb-2 flex gap-1">
         {RACE.map((x, i) => (
           <button key={x.id} onClick={() => setTi(i)} className={`rounded px-2 py-0.5 text-xs ${i === ti ? 'bg-accent text-black' : 'bg-card-2 text-muted hover:text-white'}`}>{x.label}</button>
@@ -618,7 +764,7 @@ export function SeasonHistory({ s }: P) {
   const h = s.manager?.history ?? [];
   if (!h.length) return <Card title="Histórico de temporadas" empty="Nenhuma temporada registrada ainda." />;
   return (
-    <Card title="Histórico de temporadas" help="Cada temporada do técnico: clube, liga, posição, objetivo da diretoria, campanha e gols.">
+    <Card wide title="Histórico de temporadas" help="Cada temporada do técnico: clube, liga, posição, objetivo da diretoria, campanha e gols.">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[560px] text-sm tabular-nums">
           <thead className="text-[11px] text-muted"><tr><th className="text-left">Clube</th><th className="text-left">Liga</th><th>Pos</th><th className="text-left">Objetivo</th><th>V-E-D</th><th>J</th><th>Pts</th><th>Gols</th></tr></thead>
@@ -639,7 +785,8 @@ export function SeasonHistory({ s }: P) {
 export function YouthAcademy({ s, ea }: P) {
   const y = s.youth;
   return (
-    <Card title="Categoria de base" help="Jogadores na sua base, com posição, idade, overall e potencial.">
+    <Card title="Categoria de base" help="Jogadores na sua base, com posição, idade, overall e potencial."
+      more={y.length > 6 ? () => <Table head={['Jogador', 'Pos', 'Idade', 'OVR', 'POT']} align={['l', 'l', 'r', 'r', 'r']} rows={y.map((p) => [<PlayerName key="n" id={p.id} ea={ea} />, posLabel(p.pos), p.age, <Ovr key="o" v={p.ovr} />, <Ovr key="p" v={p.pot} />])} /> : undefined}>
       <div className="mb-2 flex items-baseline gap-2"><span className="text-4xl font-bold">{y.length}</span><span className="text-xs text-muted">jogadores na base</span></div>
       {y.length === 0 ? <p className="text-sm text-muted">Base vazia. Mande um olheiro buscar jovens.</p> : (
         <ul>{y.slice(0, 6).map((p) => (
@@ -658,7 +805,8 @@ export function YouthAcademy({ s, ea }: P) {
 export function ScoutStaff({ s }: P) {
   const st = (n: number) => '★'.repeat(n).padEnd(5, '☆');
   return (
-    <Card title="Olheiros" help="Olheiros contratados, com experiência e julgamento (estrelas).">
+    <Card title="Olheiros" help="Olheiros contratados, com experiência e julgamento (estrelas)."
+      more={s.scouts.length > 4 ? () => <Table head={['Olheiro', 'Experiência', 'Julgamento']} rows={s.scouts.map((x) => [x.name, st(x.experience), st(x.knowledge)])} /> : undefined}>
       {s.scouts.length === 0 ? <p className="text-sm text-muted">Nenhum olheiro contratado.</p> : (
         <ul className="space-y-2">{s.scouts.map((x, i) => (
           <li key={i} className="text-sm">
@@ -667,6 +815,101 @@ export function ScoutStaff({ s }: P) {
           </li>
         ))}</ul>
       )}
+    </Card>
+  );
+}
+
+/** Identidade da carreira: técnico, saves enviados e desde quando. */
+export function CareerIdentity({ s, career }: P) {
+  const first = career?.snaps[0] ?? s;
+  const clubs = [...new Set((career?.snaps ?? [s]).map((x) => x.club.name))];
+  return (
+    <Card title="Identidade da carreira" help="A carreira é reconhecida pelo técnico. Saves do mesmo técnico entram na mesma carreira, mesmo se ele trocar de clube.">
+      <p className="mb-2 font-semibold">{s.manager?.name ?? '—'}</p>
+      <Stat label="Primeiro save enviado" value={dateBr(first.gameDate)} />
+      <Stat label="Clubes na carreira" value={clubs.join(' → ')} />
+      <Stat label="Temporada atual" value={s.season} />
+      <Stat label="Slot do save" value={<span className="text-xs">{s.slotName}</span>} />
+    </Card>
+  );
+}
+
+/** Situação dos saves enviados desta carreira. */
+export function SaveStatus({ s, career }: P) {
+  const snaps = career?.snaps ?? [s];
+  const seasons = new Set(snaps.map((x) => x.season)).size;
+  return (
+    <Card title="Status do save" help="Data do jogo no último save, temporada e quantos saves e temporadas desta carreira já foram enviados."
+      more={snaps.length > 1 ? () => <Table head={['Data no jogo', 'Clube', 'Temporada', 'Slot', 'Enviado em']} rows={[...snaps].reverse().map((x) => [dateBr(x.gameDate), x.club.name, x.season, x.slotName, new Date(x.importedAt).toLocaleString('pt-BR')])} /> : undefined}>
+      <Stat label="Data no jogo" value={dateBr(s.gameDate)} />
+      <Stat label="Temporada" value={s.season} />
+      <Stat label="Temporadas acompanhadas" value={seasons} />
+      <Stat label="Saves enviados" value={snaps.length} />
+      <Stat label="Último envio" value={new Date(s.importedAt).toLocaleString('pt-BR')} />
+    </Card>
+  );
+}
+
+/** O que mudou entre o save anterior e o atual desta carreira. */
+export function WhatChanged({ s, ea, career }: P) {
+  const prev = career?.previous;
+  if (!prev) return <Card title="O que mudou desde o último save" help="Compara este save com o anterior da mesma carreira: contratações, saídas, mudanças de OVR, resultados e orçamento." empty="Aparece quando você enviar o segundo save desta carreira." />;
+  if (prev.club.id !== s.club.id) return (
+    <Card title="O que mudou desde o último save" help="Compara este save com o anterior da mesma carreira.">
+      <p className="mb-2 text-xs text-muted">{dateBr(prev.gameDate)} → {dateBr(s.gameDate)}</p>
+      <p className="text-sm">Trocou de clube: <b>{prev.club.name}</b> → <b>{s.club.name}</b></p>
+      <p className="mt-2 text-sm text-muted">Os próximos saves no {s.club.name} vão mostrar contratações, saídas e mudanças de OVR.</p>
+    </Card>
+  );
+  const before = new Map(prev.squad.map((p) => [p.id, p]));
+  const now = new Map(s.squad.map((p) => [p.id, p]));
+  const joined = s.squad.filter((p) => !before.has(p.id));
+  const left = prev.squad.filter((p) => !now.has(p.id));
+  const ovr = s.squad.filter((p) => before.has(p.id) && before.get(p.id)!.ovr !== p.ovr).map((p) => ({ p, d: p.ovr - before.get(p.id)!.ovr })).sort((a, b) => Math.abs(b.d) - Math.abs(a.d));
+  const games = s.matches.filter((m) => m.played && m.date > prev.gameDate);
+  const budget = s.finances && prev.finances ? s.finances.currentBudget - prev.finances.currentBudget : 0;
+  const lines: React.ReactNode[] = [
+    games.length ? <span key="g">{games.length} jogo(s): {games.map((m) => `${m.homeName} ${m.homeGoals}–${m.awayGoals} ${m.awayName}`).slice(-3).join(' · ')}</span> : null,
+    ...joined.map((p) => <span key={'j' + p.id}><span className="text-good">Chegou</span> {ea.player(p.id).short}</span>),
+    ...left.map((p) => <span key={'l' + p.id}><span className="text-bad">Saiu</span> {ea.player(p.id).short}</span>),
+    budget ? <span key="b">Orçamento {budget > 0 ? '+' : '−'}{money(Math.abs(budget))}</span> : null,
+    ...ovr.map(({ p, d }) => <span key={'o' + p.id}>{ea.player(p.id).short} <span className={d > 0 ? 'text-good' : 'text-bad'}>{d > 0 ? '+' : ''}{d} OVR</span> ({p.ovr})</span>),
+  ].filter(Boolean);
+  return (
+    <Card title="O que mudou desde o último save" help={`Comparação com o save de ${dateBr(prev.gameDate)}: jogos, contratações, saídas, orçamento e mudanças de OVR (o OVR do FC 27 varia com forma, moral e condição).`}
+      more={lines.length > 9 ? () => <ul className="space-y-1 text-sm">{lines.map((l, i) => <li key={i}>{l}</li>)}</ul> : undefined}>
+      <p className="mb-2 text-xs text-muted">{dateBr(prev.gameDate)} → {dateBr(s.gameDate)}</p>
+      {lines.length ? <ul className="space-y-1 text-sm">{lines.slice(0, 9).map((l, i) => <li key={i}>{l}</li>)}</ul> : <p className="text-sm text-muted">Nada mudou entre os dois saves.</p>}
+    </Card>
+  );
+}
+
+/** Competições do seu clube na temporada e a situação em cada uma. */
+export function Silverware({ s }: P) {
+  const comps = [...new Map(s.matches.map((m) => [m.competitionId, m.competition])).entries()];
+  const table = s.standings.find((t) => t.isLeague);
+  const status = (id: number, name: string) => {
+    const games = s.matches.filter((m) => m.competitionId === id);
+    const left = games.filter((m) => !m.played).length;
+    if (table && name === table.title) {
+      const pos = table.rows.findIndex((r) => r.teamId === s.club.id) + 1;
+      return left ? `${pos}º · em andamento` : pos === 1 ? '🏆 Campeão' : `Terminou em ${pos}º`;
+    }
+    return left ? 'Em andamento' : 'Encerrada';
+  };
+  const cups = (s.stats ?? []).some((c) => c.competitionId === -1);
+  return (
+    <Card title="Troféus" help="As competições do seu clube nesta temporada e a situação em cada uma, e os títulos do clube.">
+      <p className="mb-1 text-[11px] font-semibold text-muted">SUAS COMPETIÇÕES</p>
+      <ul className="mb-3 space-y-1.5">
+        {comps.map(([id, name]) => <li key={id} className="flex items-center gap-2 text-sm"><span className="text-mid">🏆</span><span className="flex-1">{name}</span><span className="text-xs text-muted">{status(id, name)}</span></li>)}
+        {cups && <li className="flex items-center gap-2 text-sm"><span className="text-mid">🏆</span><span className="flex-1">Copa nacional</span><span className="text-xs text-muted">disputada</span></li>}
+      </ul>
+      <p className="mb-1 text-[11px] font-semibold text-muted">TÍTULOS DO CLUBE</p>
+      <div className="grid grid-cols-2 gap-2 text-center">
+        <div className="rounded bg-card-2 p-2"><div className="text-2xl font-bold">{s.club.leagueTitles}</div><div className="text-[10px] text-muted">Ligas</div></div>
+        <div className="rounded bg-card-2 p-2"><div className="text-2xl font-bold">{s.club.domesticCups}</div><div className="text-[10px] text-muted">Copas nacionais</div></div>
+      </div>
     </Card>
   );
 }

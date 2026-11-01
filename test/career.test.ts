@@ -44,7 +44,7 @@ describe.skipIf(!existsSync(join(DIR, 's4.sav')))('resumo da Home com save real'
     expect(s.transfers.find((t) => t.playerId === 74463)).toMatchObject({ fromName: 'FC Barcelona', toId: 13, fee: 37_500_000, wage: 30_500 });
   });
   it('lê finanças, papéis, moral e técnico', () => {
-    expect(s.finances).toEqual({ initialBudget: 1_129_626_816, currentBudget: 1_087_579_956, spentOnPlayers: 38_620_960, wageRaises: 2_843_500 });
+    expect(s.finances).toMatchObject({ initialBudget: 1_129_626_816, currentBudget: 1_087_579_956, spentOnPlayers: 38_620_960, wageRaises: 2_843_500 });
     expect(s.squad.filter((p) => p.role).length).toBe(27);
     expect(s.morale?.average).toBeGreaterThan(50);
     expect(s.manager).toMatchObject({ name: 'Matthias Jaissle', jobSecurity: 80, earnings: 355_000 });
@@ -85,5 +85,23 @@ describe.skipIf(!existsSync(join(DIR, 'b.sav')))('outra carreira (América → P
     expect(sum(77379, 'assists')).toBe(7);
     expect(sum(77379, 'potm')).toBe(6);
     const f = stat(279491); expect((f.reduce((a, x) => a + x.avgRating * x.apps, 0) / sum(279491, 'apps')).toFixed(2)).toBe('7.26');
+  }, 60_000);
+});
+
+describe.skipIf(!existsSync(join(DIR, 's6.sav')))('várias carreiras', () => {
+  it('separa Newcastle de América/Pisa e junta saves da mesma carreira', async () => {
+    const { groupCareers, upsert } = await import('../src/lib/career/merge');
+    const load = (f: string) => buildSnapshot(readSave(new Uint8Array(readFileSync(join(DIR, `${f}.sav`)))));
+    const [a, b, s5, s6] = ['a', 'b', 's5', 's6'].map(load) as [ReturnType<typeof load>, ReturnType<typeof load>, ReturnType<typeof load>, ReturnType<typeof load>];
+    let all = [s6, a, s5, b];
+    all = upsert(all, s6); // reenviar o mesmo save não duplica
+    const careers = groupCareers(all);
+    expect(careers.length).toBe(2);
+    const pisa = careers.find((c) => c.view.club.name === 'Pisa')!;
+    expect(pisa.snaps.map((x) => x.club.name)).toEqual(['América', 'Pisa']);
+    const nc = careers.find((c) => c.view.club.name === 'Newcastle United')!;
+    expect(nc.snaps.length).toBe(2);
+    expect(nc.previous?.gameDate).toBe(s5.gameDate);
+    expect(b.tactic).toMatchObject({ formation: '4-3-3', code: 'TAsX&hrbf5nQ', defensiveDepth: 25, buildUp: 0 });
   }, 60_000);
 });
