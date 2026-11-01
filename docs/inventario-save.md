@@ -35,19 +35,23 @@ Cada save tem **80 módulos** e **41 tabelas**. A coluna "Saves" diz onde o dado
 | socm | Feed de notícias: **time da semana**, **jogador do mês**, demissões e contratações de técnicos, rumores, clássicos | todos (só os posts recentes; o app acumula) | lido, sem card ainda |
 | emlm | Caixa de e-mails: aviso da diretoria, lesões, volta de lesão, base, fim de empréstimo, aposentadoria | todos | lido, sem card ainda |
 
-## 2. Têm dados de carreira, ainda não decodificados (próximos)
+## 2. Têm dados de carreira, ainda sem significado confirmado
 
-| Módulo | O que parece ser | Evidência |
+Para fechar estes, preciso comparar com a tela do jogo (print) ou com um save tirado logo depois de uma ação conhecida.
+
+| Módulo | O que já sei | Onde muda |
 |---|---|---|
-| stvm | Histórico de cada jogador por clube (3.886 jogadores, registros com clube e campos de bits) | 98 KB, ~4.100 IDs de jogador |
-| psrm | Dados por jogador que crescem na temporada (forma/avaliações?) | 4,5 KB no início → 10 KB no fim, 1.122 jogadores |
-| sagm | Variáveis dos eventos do jogo: limites de aviso e demissão por dificuldade (padrão: aviso 35, demissão 30), eventos inesperados | identificado |
-| jbom | Vagas e ofertas de emprego para técnicos | ~820 times |
-| dovm, plcm, pdrm, plvm, plmm | Dados por jogador que mudam a cada save (contratos, desenvolvimento, propostas?) | tamanhos mudam entre saves |
-| plgm | Crescimento de todos os jogadores do mundo (21.946) | 326 KB |
-| intm | Seleções e convocações | "MatchTypeIntFriendly" |
-| coam, stfm, sctm | Comissão técnica, funcionários e olheiros disponíveis | nomes |
-| tskm, mssm, inrm, phmg, uevm, accm, tmvm, crsm | Tarefas, mensagens, eventos inesperados, notícias | pequenos, mudam entre saves |
+| stvm | Histórico de cada jogador por clube (3.886 jogadores; campos em bits de tamanho variável) | só entre temporadas/transferências (igual antes e depois do jogo da Premier) |
+| dovm | Por jogador do seu elenco + outros (314 no Newcastle): lista de (atributo, nível 1–5). Provável plano de desenvolvimento | a cada save |
+| plcm | Seu elenco + ~40 outros, cada um com um nível 1–3. Provável conversas/promessas ou interesse | a cada save |
+| pdrm | 264 jogadores de outros clubes (Newcastle, janela aberta) e 67 no fim da temporada, com valor e data. Provável interesse/pedidos no mercado | a cada save |
+| plmm | 86 jogadores de outros clubes durante a janela, vazio com a janela fechada. Provável lista de transferências do mercado | janela de transferências |
+| psrm | 6 listas de jogadores da mesma liga do clube (86, 40…). Provável busca de olheiros / jogadores recomendados | cresce na temporada |
+| coam | Seu elenco + nomes da comissão técnica (treinadores) | a cada save |
+| jbom | 836 clubes com uma nota (80/65/55) e ofertas de técnicos no fim; provável mercado de técnicos | fim da temporada |
+| intm | Seleções e jogos internacionais (132 jogadores no fim da temporada) | data FIFA |
+| tskm, mssm, inrm, phmg, uevm, accm, tmvm, crsm | Tarefas, mensagens, eventos inesperados, conquistas | pequenos |
+| plgm | Crescimento de todos os 21.946 jogadores do mundo | sempre |
 
 ## 3. Vazios ou fixos em todos os saves
 
