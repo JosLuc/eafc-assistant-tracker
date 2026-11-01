@@ -3,8 +3,11 @@ import type { CareerSnapshot } from '@/lib/career/snapshot';
 import { starters } from '@/lib/career/tips';
 import { Ovr, Pic, dateBr } from './ui';
 import type { Ea } from './names';
+import type { Career } from '@/lib/career/merge';
 
-export function Header({ s, ea, onUpload }: { s: CareerSnapshot; ea: Ea; onUpload: () => void }) {
+export function Header({ s, ea, onUpload, careers, current, onChoose, onRemove }: {
+  s: CareerSnapshot; ea: Ea; onUpload: () => void; careers: Career[]; current: Career; onChoose: (k: string) => void; onRemove: (k: string) => void;
+}) {
   const xi = starters(s);
   const bestXi = Math.round(xi.reduce((a, p) => a + p.ovr, 0) / Math.max(1, xi.length));
   const crest = ea.crest(s.club.id);
@@ -24,7 +27,15 @@ export function Header({ s, ea, onUpload }: { s: CareerSnapshot; ea: Ea; onUploa
           <button onClick={onUpload} className="rounded-md bg-accent px-4 py-2 text-sm font-semibold hover:brightness-110">⇪ Enviar save novo</button>
         </div>
       </div>
-      <p className="mt-3 text-xs text-muted">Save “{s.slotName}” · enviado em {new Date(s.importedAt).toLocaleString('pt-BR')}{!ea.available && ' · nomes e fotos indisponíveis agora (API da EA fora do ar)'}</p>
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-muted">Carreira:</span>
+        <select value={current.key} onChange={(e) => onChoose(e.target.value)} className="rounded border border-line bg-card-2 px-2 py-1">
+          {careers.map((c) => <option key={c.key} value={c.key}>{c.view.manager?.name ?? '?'} · {c.view.club.name} · {c.snaps.length} save{c.snaps.length > 1 ? 's' : ''}</option>)}
+        </select>
+        <button onClick={onUpload} className="rounded border border-line px-2 py-1 hover:bg-card-2">+ Nova carreira</button>
+        <button onClick={() => onRemove(current.key)} className="rounded px-2 py-1 text-muted hover:text-bad">Apagar carreira</button>
+      </div>
+      <p className="mt-2 text-xs text-muted">Envie saves novos desta carreira quando quiser: o app reconhece o técnico e junta os dados. Último save “{s.slotName}” · enviado em {new Date(s.importedAt).toLocaleString('pt-BR')}{!ea.available && ' · nomes e fotos indisponíveis agora (API da EA fora do ar)'}</p>
     </div>
   );
 }

@@ -1,13 +1,22 @@
 'use client';
 import { useState } from 'react';
 
-export function Card({ title, help, wave, empty, className = '', action, children }: {
+/**
+ * Card da Home. Todos têm a mesma altura (como no CM Tracker); o que não cabe fica em "Ver tudo",
+ * que abre uma janela com a lista completa.
+ */
+export function Card({ title, help, wave, empty, className = '', action, children, more, wide }: {
   title: string; help?: string; wave?: number; empty?: string; className?: string; action?: React.ReactNode; children?: React.ReactNode;
+  /** Conteúdo completo mostrado na janela "Ver tudo". */
+  more?: React.ReactNode | (() => React.ReactNode);
+  /** Cards largos (linha inteira) crescem com o conteúdo. */
+  wide?: boolean;
 }) {
   const [tip, setTip] = useState(false);
+  const [open, setOpen] = useState(false);
   return (
-    <section className={`relative rounded-lg border border-line bg-card p-4 ${empty ? 'border-dashed' : ''} ${className}`}>
-      <header className="mb-3 flex items-center gap-2">
+    <section className={`relative flex flex-col rounded-lg border border-line bg-card p-4 ${wide ? 'min-h-[220px]' : 'h-[460px]'} ${empty ? 'border-dashed' : ''} ${className}`}>
+      <header className="mb-3 flex shrink-0 items-center gap-2">
         <h3 className="title text-[15px]">{title}</h3>
         {help && (
           <button aria-label="Ajuda" onMouseEnter={() => setTip(true)} onMouseLeave={() => setTip(false)} onClick={() => setTip((v) => !v)}
@@ -18,16 +27,65 @@ export function Card({ title, help, wave, empty, className = '', action, childre
           <div className="absolute left-4 top-10 z-20 max-w-72 rounded-md border border-line bg-card-2 p-3 text-xs text-[#cfcfd6] shadow-xl">{help}</div>
         )}
       </header>
-      {empty ? (
-        <div className="grid min-h-40 place-items-center text-center text-sm text-muted">
-          <div>
-            <div className="mb-2 text-2xl">⧗</div>
-            <p>{empty}</p>
-            {wave && <p className="mt-1 text-xs">Chega na onda {wave} da Home.</p>}
+      <div className={`min-h-0 flex-1 ${wide ? '' : 'overflow-hidden'}`}>
+        {empty ? (
+          <div className="grid h-full min-h-40 place-items-center text-center text-sm text-muted">
+            <div>
+              <div className="mb-2 text-2xl">⧗</div>
+              <p>{empty}</p>
+              {wave && <p className="mt-1 text-xs">Chega na onda {wave} da Home.</p>}
+            </div>
           </div>
-        </div>
-      ) : children}
+        ) : children}
+      </div>
+      {more && !empty && (
+        <button onClick={() => setOpen(true)} className="mt-3 self-start rounded border border-line px-2.5 py-1 text-xs font-semibold text-accent hover:bg-card-2">VER TUDO ›</button>
+      )}
+      {open && <Modal title={title} onClose={() => setOpen(false)}>{typeof more === 'function' ? more() : more}</Modal>}
     </section>
+  );
+}
+
+export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/60" onClick={onClose}>
+      <div className="h-full w-full max-w-4xl overflow-y-auto border-l border-line bg-card p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center">
+          <h2 className="title text-lg">{title}</h2>
+          <button onClick={onClose} aria-label="Fechar" className="ml-auto rounded px-2 text-xl text-muted hover:text-white">×</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** Tabela simples para as janelas "Ver tudo". */
+export function Table({ head, rows, align }: { head: React.ReactNode[]; rows: React.ReactNode[][]; align?: ('l' | 'r')[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead><tr className="border-b border-line text-left text-[11px] uppercase text-muted">
+          {head.map((h, i) => <th key={i} className={`px-2 py-1.5 font-semibold ${align?.[i] === 'r' ? 'text-right' : ''}`}>{h}</th>)}
+        </tr></thead>
+        <tbody>{rows.map((r, i) => (
+          <tr key={i} className="border-b border-line/50 hover:bg-card-2">
+            {r.map((c, j) => <td key={j} className={`px-2 py-1.5 ${align?.[j] === 'r' ? 'text-right tabular-nums' : ''}`}>{c}</td>)}
+          </tr>
+        ))}</tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Abas pequenas (ex.: Gols / Assist.). */
+export function Tabs<T extends string>({ value, options, onChange }: { value: T; options: { id: T; label: string }[]; onChange: (v: T) => void }) {
+  return (
+    <div className="mb-2 flex flex-wrap gap-1">
+      {options.map((o) => (
+        <button key={o.id} onClick={() => onChange(o.id)} className={`rounded px-2 py-0.5 text-xs ${o.id === value ? 'bg-accent text-black' : 'bg-card-2 text-muted hover:text-white'}`}>{o.label}</button>
+      ))}
+    </div>
   );
 }
 

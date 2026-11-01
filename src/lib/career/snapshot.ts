@@ -20,6 +20,7 @@ export interface SquadPlayer {
   yellows?: number; banGames?: number;
   /** Papel no elenco: 1 Crucial, 2 Importante, 3 Rodízio, 4 Esporádico, 5 Promessa (módulo pstm). */
   role?: number;
+  moraleTeam?: number; moralePlayer?: number; moraleContract?: number;
   /** Moral 0–100 e seus componentes (módulo pllm). */
   morale?: number; playingTime?: number;
 }
@@ -50,6 +51,7 @@ export interface CareerSnapshot {
     rivalId: number; rivalName: string; stadiumCapacity: number; founded: number; clubWorth: number;
     captainId: number; penaltyTakerId: number; freeKickTakerId: number; cornerTakerId: number;
     leagueTitles: number; domesticCups: number; prevPosition: number;
+    popularity: number;
   };
   manager: {
     name: string; joined: number; wage?: number; earnings?: number; jobSecurity?: number;
@@ -59,7 +61,7 @@ export interface CareerSnapshot {
   } | null;
   /** Nomes que o save guarda (jogadores gerados pelo jogo: base e regens). Reais vêm da EA. */
   names: Record<number, string>;
-  finances: { initialBudget: number; currentBudget: number; spentOnPlayers: number; wageRaises: number } | null;
+  finances: { initialBudget: number; currentBudget: number; spentOnPlayers: number; wageRaises: number; transactions?: { date: number; amount: number; type: number }[] } | null;
   morale: { average: number; teamPerformance: number; playerPerformance: number; contract: number; playingTime: number } | null;
   /** Gols do seu time na temporada, por jogador (histórico de jogos do técnico, inclui amistosos). */
   scorers: { playerId: number; goals: number }[];
@@ -75,6 +77,24 @@ export interface CareerSnapshot {
   transfers: Transfer[];
   /** Estatísticas da temporada por competição: todo o seu elenco e, na liga, os líderes dos outros times. */
   stats: CompetitionStats[];
+  /** Identifica a carreira (técnico + data de nascimento), para juntar saves da mesma carreira. */
+  careerKey: string;
+  /** Tática ativa e cobradores de bola parada. */
+  tactic: Tactic | null;
+  /** Transferências pelo mundo registradas no save (persistent_events). */
+  worldTransfers: { date: number; playerId: number; fromId: number; fromName: string; toId: number; toName: string }[];
+  /** Empréstimos do clube: emprestados (out) e recebidos (in). */
+  loans: Loan[];
+  /** Convites de torneios de pré-temporada. */
+  preseason: { key: string; name: string; prize: number; teams: { id: number; name: string }[] }[];
+}
+export interface Loan { dir: 'out' | 'in'; playerId: number; clubId: number; clubName: string; until: number; buyOption: number | null; ovr: number; age: number; pos: number }
+export interface Tactic {
+  name: string; formation: string; code: string; defensiveDepth: number; buildUp: number;
+  /** Titulares na ordem da formação, com posição e coordenadas no campo (0..1). */
+  players: { playerId: number; pos: number; x: number; y: number }[];
+  captain: number; penalties: number; freeKickL: number; freeKickR: number; cornerL: number; cornerR: number;
+  longKick: number; throwL: number; throwR: number; cornerSupport: number[];
 }
 
 const num = (r: Row | undefined, k: string) => (r?.[k] as number | undefined) ?? 0;
@@ -184,7 +204,7 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
   if (save.morale?.teamId === clubId && save.morale.players.length) {
     const ms = save.morale.players;
     const byId = new Map(ms.map((x) => [x.playerId, x]));
-    for (const p of squad) { const x = byId.get(p.id); if (x) { p.morale = x.morale; p.playingTime = x.playingTime; } }
+    for (const p of squad) { const x = byId.get(p.id); if (x) { p.morale = x.morale; p.playingTime = x.playingTime; p.moraleTeam = x.teamPerformance; p.moralePlayer = x.playerPerformance; p.moraleContract = x.contract; } }
     const avg = (f: (x: (typeof ms)[number]) => number) => Math.round(ms.reduce((a, x) => a + f(x), 0) / ms.length);
     morale = { average: avg((x) => x.morale), teamPerformance: avg((x) => x.teamPerformance), playerPerformance: avg((x) => x.playerPerformance), contract: avg((x) => x.contract), playingTime: avg((x) => x.playingTime) };
   }
@@ -236,6 +256,7 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
 
   const stats = competitionStats(save, clubId, matches, rowTeam);
   for (const c of stats) for (const x of c.players) if (!names[x.playerId]) { const n = nameOf(x.playerId); if (n) names[x.playerId] = n; }
+  for (const e of t.persistent_events ?? []) { const id = num(e, 'player1id'); if (id > 0 && !names[id]) { const n = nameOf(id); if (n) names[id] = n; } }
 
   const mgr = (t.manager ?? []).find((m) => num(m, 'teamid') === clubId);
   const lineup = save.lineups.find((l) => l.teamId === clubId);
@@ -258,6 +279,7 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
       freeKickTakerId: num(team, 'freekicktakerid'), cornerTakerId: num(team, 'leftcornerkicktakerid'),
       leagueTitles: num(team, 'leaguetitles'), domesticCups: num(team, 'domesticcups'),
       prevPosition: num(ltl, 'previousyeartableposition'),
+      popularity: num(team, 'popularity'),
     },
     manager: mgr ? {
       name: str(mgr, 'commonname') || `${str(mgr, 'firstname')} ${str(mgr, 'surname')}`.trim(),
@@ -278,6 +300,53 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
       .map((x) => ({ date: x.date, playerId: x.playerId, fromId: x.fromTeam, fromName: teamName(x.fromTeam), toId: x.toTeam, toName: teamName(x.toTeam), fee: x.fee, wage: x.wage }))
       .sort((a, b) => b.date - a.date),
     stats,
+    careerKey: careerKeyOf(mgr, clubId),
+    tactic: readTactic(t, clubId),
+    worldTransfers: (t.persistent_events ?? []).filter((e) => num(e, 'eventid') === 5 && num(e, 'player1id') > 0)
+      .map((e) => ({ date: num(e, 'eventdate'), playerId: num(e, 'player1id'), fromId: num(e, 'team1id'), fromName: teamName(num(e, 'team1id')), toId: num(e, 'team2id'), toName: teamName(num(e, 'team2id')) }))
+      .sort((a, b) => b.date - a.date),
+    loans: clubLoans(save, clubId, teamName, players, today),
+    preseason: save.preseason.map((x) => ({ key: x.key, name: x.name, prize: x.prize, teams: x.teams.map((id) => ({ id, name: teamName(id) })) })),
+  };
+}
+
+function clubLoans(save: CareerSave, clubId: number, teamName: (id: number) => string, players: Map<number, Row>, today: Date): Loan[] {
+  const at = new Map<number, number>();
+  for (const l of save.tables.teamplayerlinks ?? []) at.set(num(l, 'playerid'), num(l, 'teamid'));
+  return save.loans.flatMap((x): Loan[] => {
+    const where = at.get(x.playerId);
+    const dir = x.ownerId === clubId ? 'out' : where === clubId ? 'in' : null;
+    if (!dir) return [];
+    const p = players.get(x.playerId);
+    const clubIdOther = dir === 'out' ? where ?? 0 : x.ownerId;
+    return [{ dir, playerId: x.playerId, clubId: clubIdOther, clubName: teamName(clubIdOther), until: x.until, buyOption: x.buyOption,
+      ovr: num(p, 'overallrating'), age: ageAt(fromGameDays(num(p, 'birthdate')), today), pos: num(p, 'preferredposition1') }];
+  });
+}
+
+/** Carreira = técnico do usuário (nome + nascimento). O mesmo técnico pode trocar de clube (ex.: América → Pisa). */
+function careerKeyOf(mgr: Row | undefined, clubId: number) {
+  if (!mgr) return `clube-${clubId}`;
+  const name = str(mgr, 'commonname') || `${str(mgr, 'firstname')} ${str(mgr, 'surname')}`.trim();
+  return `${name}|${num(mgr, 'birthdate')}|${num(mgr, 'nationality')}`;
+}
+
+function readTactic(t: CareerSave['tables'], clubId: number): Tactic | null {
+  const m = (t.cm_mentalities ?? []).find((r) => num(r, 'teamid') === clubId) ?? t.cm_mentalities?.[0];
+  const ts = (t.cm_teamsheets ?? []).find((r) => num(r, 'teamid') === clubId) ?? t.cm_teamsheets?.[0];
+  if (!m && !ts) return null;
+  const formation = (t.formations ?? []).find((f) => num(f, 'formationid') === num(m, 'sourceformationid'));
+  const players = Array.from({ length: 11 }, (_, i) => ({
+    playerId: num(m, `playerid${i}`), pos: num(m, `position${i}`), x: num(m, `offset${i}x`), y: num(m, `offset${i}y`),
+  })).filter((p) => p.playerId > 0);
+  const id = (k: string) => num(ts, k);
+  return {
+    name: str(m, 'tactic_name') || str(ts, 'teamsheetname'), formation: str(formation, 'formationname'), code: str(m, 'code'),
+    defensiveDepth: num(m, 'defensivedepth'), buildUp: num(m, 'buildupplay'), players,
+    captain: id('captainid'), penalties: id('penaltytakerid'), freeKickL: id('leftfreekicktakerid'), freeKickR: id('rightfreekicktakerid'),
+    cornerL: id('leftcornerkicktakerid'), cornerR: id('rightcornerkicktakerid'), longKick: id('longkicktakerid'),
+    throwL: id('throwerleft'), throwR: id('throwerright'),
+    cornerSupport: [...new Set(Array.from({ length: 9 }, (_, i) => id(`cksupport${i + 1}`)).filter((x) => x > 0))],
   };
 }
 
