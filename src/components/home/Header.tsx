@@ -82,7 +82,7 @@ export function Header({ s, ea, onUpload, careers, current, onChoose, onRemove, 
       {!ea.available && <p className="border-t border-line px-5 py-2 text-[11px] text-muted">Nomes e fotos indisponíveis agora (API da EA fora do ar). Último save “{s.slotName}”, enviado em {new Date(s.importedAt).toLocaleString('pt-BR')}.</p>}
     </div>
     {/* Abas fixas no topo ao rolar (como no CM Tracker). */}
-    <nav id="tabs" className="sticky top-0 z-40 !mt-0 flex h-12 items-center gap-1 overflow-x-auto rounded-b-[10px] border-t border-line bg-card px-3 shadow-[0_8px_16px_-12px_rgba(0,0,0,.8)]">
+    <nav id="tabs" className="sticky top-0 z-40 !mt-0 no-scrollbar flex h-12 items-center gap-1 overflow-x-auto rounded-b-[10px] border-t border-line bg-card px-3 shadow-[0_8px_16px_-12px_rgba(0,0,0,.8)]">
         <kbd className="mr-1 rounded border border-line px-1.5 text-[10px] text-muted" title="Aba anterior">Q</kbd>
         {PAGES.map((x) => (
           <button key={x.id} onClick={() => setPage(x.id)}

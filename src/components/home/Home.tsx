@@ -132,7 +132,7 @@ export function Home() {
       {page === 'elenco' ? <SquadPage s={s} ea={ea} /> : page === 'base' ? <YouthPage s={s} ea={ea} /> : page === 'trofeus' ? <TrophiesPage s={s} ea={ea} career={career!} /> : page === 'scout' ? <ScoutPage s={s} db={db} /> : (
         <div>
           <div className="flex items-baseline justify-between"><h2 className="title text-[15px]">Visão do clube</h2><span className="text-xs text-muted">Do save enviado · temporada {s.season}</span></div>
-          <nav className="sticky top-12 z-30 -mx-4 mb-2 flex gap-5 overflow-x-auto border-b border-line bg-bg/95 px-4 backdrop-blur md:-mx-6 md:px-6">
+          <nav className="sticky top-12 z-30 -mx-4 mb-2 no-scrollbar flex gap-5 overflow-x-auto border-b border-line bg-bg/95 px-4 backdrop-blur md:-mx-6 md:px-6">
             {SECTIONS.map((x) => {
               const n = WIDGETS.filter((w) => w.sections[0] === x.id).length;
               return (
