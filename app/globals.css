@@ -17,7 +17,19 @@
   --font-sans: 'Ubuntu Sans', ui-sans-serif, system-ui, sans-serif;
 }
 
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; color-scheme: dark; }
+
+/* Barras de rolagem finas e escuras (página, gavetas, cards, tabelas e filtros). */
+* { scrollbar-width: thin; scrollbar-color: #3a3a3a transparent; }
+*:hover { scrollbar-color: #4a4a4a transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: #4a4a4a; background-clip: padding-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+/* Faixas de abas roláveis na horizontal: sem barra visível. */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
 html, body { background: var(--color-bg); color: #f0f0f0; }
 body { font-size: 14px; line-height: 1.45; }
 .title { font-family: var(--font-display); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
