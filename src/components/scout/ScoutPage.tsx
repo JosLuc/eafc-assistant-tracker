@@ -7,6 +7,7 @@ import { EMPTY, RANGE, RANGES, activeCount, derive, rangeValue, runScout, type G
 import { useEa, useEaMeta } from '../home/names';
 import { Ovr, Pic, money } from '../home/ui';
 import { useHub } from '../drawer/kit';
+import { ClubsView, ManagersView } from './ScoutOthers';
 
 /**
  * Aba Scout: busca em todos os jogadores do save (≈22 mil) com filtros por faixa, posições com Ou/E,
@@ -24,6 +25,20 @@ const save = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.str
 const norm = (x: string) => x.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 export function ScoutPage({ s, db }: P) {
+  const [mode, setMode] = useState<'jogadores' | 'times' | 'tecnicos'>('jogadores');
+  const tabs = (
+    <div className="mb-4 flex items-center gap-1 rounded-lg border border-line bg-card p-1 text-[13px] w-fit">
+      {([['jogadores', 'Jogadores'], ['times', 'Times'], ['tecnicos', 'Técnicos']] as const).map(([k, l]) => (
+        <button key={k} onClick={() => setMode(k)} className={`rounded-md px-4 py-1.5 font-semibold ${mode === k ? 'bg-accent/20 text-white ring-1 ring-accent' : 'text-muted hover:text-white'}`}>{l}</button>
+      ))}
+    </div>
+  );
+  if (mode === 'jogadores' || !db) return <div>{db && tabs}<PlayersScout s={s} db={db} /></div>;
+  if (!db.clubs) return <div>{tabs}<div className="rounded-[10px] bg-card p-8 text-center text-sm text-muted">Times e técnicos entram na base no próximo envio do save. Envie o save de novo para ver esta lista.</div></div>;
+  return <div>{tabs}{mode === 'times' ? <ClubsView s={s} db={db} /> : <ManagersView s={s} db={db} />}</div>;
+}
+
+function PlayersScout({ s, db }: P) {
   const { openPlayer } = useHub();
   const d = useMemo(() => (db ? derive(db) : null), [db]);
   const meta = useEaMeta();

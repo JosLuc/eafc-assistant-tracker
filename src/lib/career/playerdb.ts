@@ -49,7 +49,13 @@ const BASE = [
 export const DB_FIELDS = [...BASE, ...ATTRS] as const;
 export type DbField = (typeof DB_FIELDS)[number] | 'team' | 'jersey' | 'age' | 'value';
 
-export interface PlayerDb { gameDate: number; id: number[]; cols: Partial<Record<DbField, number[]>>; teams: Record<number, string>; leagueOfTeam: Record<number, number>; leagues: Record<number, string> }
+export interface ClubRow { id: number; name: string; league: number; ovr: number; att: number; mid: number; def: number; worth: number; domPrestige: number; intPrestige: number; popularity: number; youth: number; capacity: number; founded: number; leagueTitles: number; cups: number; ucl: number; uel: number; rival: number; women: boolean }
+export interface ManagerRow { id: number; name: string; team: number; nation: number; stars: number; age: number; joined: number }
+export interface PlayerDb {
+  gameDate: number; id: number[]; cols: Partial<Record<DbField, number[]>>; teams: Record<number, string>; leagueOfTeam: Record<number, number>; leagues: Record<number, string>;
+  /** Times e técnicos para a Scout (ausentes em bancos montados antes desta versão). */
+  clubs?: ClubRow[]; managers?: ManagerRow[];
+}
 
 /** Ligas que não são o campeonato nacional do time (continentais, seleções, salvos, base). */
 const NOT_DOMESTIC = new Set([78, 1003, 1014, 2000, 2028, 2136]);
@@ -104,7 +110,26 @@ export function buildPlayerDb(save: CareerSave, today: Date, gameDate: number): 
   for (const tid of usedTeams) if (leagueOf.has(tid)) leagueOfTeam[tid] = leagueOf.get(tid)!;
   const leagues: Record<number, string> = {};
   for (const r of t.leagues ?? []) leagues[num(r, 'leagueid')] = String(r.leaguename ?? '').replace(/\s*\(\d+\)\s*$/, '');
-  return { gameDate, id, cols, teams, leagueOfTeam, leagues };
+  // Times de liga (sem seleções, clássicos e times técnicos) e os técnicos de cada um.
+  const clubs: ClubRow[] = [];
+  for (const r of t.teams ?? []) {
+    const tid = num(r, 'teamid'), lg = leagueOf.get(tid);
+    if (lg == null || NATIONAL.has(lg) || HIDDEN_LEAGUES.has(lg) || HIDDEN_TEAMS.has(tid) || FREE_AGENT_LEAGUES.has(lg) || lg === 383 || lg === 2028 || lg === 2000) continue;
+    teams[tid] ??= String(r.teamname ?? '');
+    leagueOfTeam[tid] ??= lg;
+    clubs.push({ id: tid, name: String(r.teamname ?? ''), league: lg, ovr: num(r, 'overallrating'), att: num(r, 'attackrating'), mid: num(r, 'midfieldrating'), def: num(r, 'defenserating'),
+      worth: num(r, 'clubworth') * 1000, domPrestige: num(r, 'domesticprestige'), intPrestige: num(r, 'internationalprestige'), popularity: num(r, 'popularity'), youth: num(r, 'youthdevelopment'),
+      capacity: num(r, 'teamstadiumcapacity'), founded: num(r, 'foundationyear'), leagueTitles: num(r, 'leaguetitles'), cups: num(r, 'domesticcups'), ucl: num(r, 'uefa_cl_wins'), uel: num(r, 'uefa_el_wins'), rival: num(r, 'rivalteam'), women: num(r, 'gender') === 1 });
+  }
+  const clubIds = new Set(clubs.map((c) => c.id));
+  const managers: ManagerRow[] = [];
+  for (const m of t.manager ?? []) {
+    const team = num(m, 'teamid');
+    if (!clubIds.has(team)) continue;
+    const name = String(m.commonname || `${m.firstname ?? ''} ${m.surname ?? ''}`).trim();
+    managers.push({ id: num(m, 'managerid'), name, team, nation: num(m, 'nationality'), stars: num(m, 'starrating'), age: num(m, 'birthdate') > 0 ? ageAt(fromGameDays(num(m, 'birthdate')), today) : 0, joined: num(m, 'managerjointeamdate') });
+  }
+  return { gameDate, id, cols, teams, leagueOfTeam, leagues, clubs, managers };
 }
 
 /** Uma linha do banco como objeto. */
