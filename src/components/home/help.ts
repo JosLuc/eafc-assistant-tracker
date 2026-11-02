@@ -27,7 +27,7 @@ export const WHEN: Record<string, string> = {
   'Próximos jogos': 'Enquanto houver jogos marcados no calendário.',
   'Resultados': 'Depois do primeiro jogo do clube na temporada.',
   'Salários': 'Sempre.',
-  'Objetivos da diretoria': 'Sempre que o save tem a temporada do técnico. Mínimo, meta e stretch por competição ainda não.',
+  'Objetivos da diretoria': 'Sempre que o save tem a temporada do técnico. Metas de longo prazo ainda não.',
   'Segurança no cargo': 'Sempre. Muda com resultados e objetivos da diretoria.',
   'Status do save': 'Sempre.',
   'Transferências do clube': 'Depois da primeira contratação ou venda do seu clube.',

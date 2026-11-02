@@ -4,7 +4,7 @@ import { posLabel } from '@/lib/career/positions';
 import { Card, Ovr, Pic, Stat, Table, dateBr, money, PN } from './ui';
 import type { Career } from '@/lib/career/merge';
 import type { Ea } from './names';
-import { leagueObjective, securityLevel } from '@/lib/career/objectives';
+import { continentalObjective, cupObjective, leagueObjective, mainCup, securityLevel } from '@/lib/career/objectives';
 
 /** Cards com os dados novos do save: forma, OVR dinâmico, valor, temporada passada, comissão técnica, notícias, e-mails e rivais. */
 type P = { s: CareerSnapshot; ea: Ea; career?: Career };
@@ -254,7 +254,7 @@ export function LeagueRivals({ s, ea }: P) {
 export function BoardObjectives({ s, ea }: P) {
   const m = s.manager;
   const season = m?.history?.filter((x) => x.teamId === s.club.id).at(-1);
-  const help = 'O que a diretoria espera nesta temporada: a meta da liga, como está a campanha e a segurança no cargo. Mínimo, meta e stretch de cada competição ainda vão entrar.';
+  const help = 'O que a diretoria espera nesta temporada, como no menu Objetivos do jogo: a meta da liga e da copa, como está a campanha e a segurança no cargo.';
   if (!m || !season) return <Card title="Objetivos da diretoria" help={help} empty="Este save não trouxe os objetivos da temporada." />;
   const table = s.standings.find((t) => t.isLeague);
   const started = table?.rows.some((r) => r.played) ?? false;
@@ -268,26 +268,40 @@ export function BoardObjectives({ s, ea }: P) {
   const board = fixDates((newJob ? [] : s.emails ?? []).filter((x) => /Board|JobSecurity|UnhappyWage|SackWarn/.test(x.key) && (x.teams ?? []).every((t) => t.id === s.club.id)), s.gameDate).sort(byDate)
     .filter((x) => { const k = `${label(x.key, MAIL)}|${x.date}`; if (seen.has(k)) return false; seen.add(k); return true; });
   const cups = s.cups ?? [];
+  const obj = m.objectives;
+  const cup = mainCup(cups);
+  const leagueCode = obj?.league ?? season.objective;
+  const goals: { text: string; comp: string; status: string }[] = [
+    { text: leagueObjective(leagueCode), comp: s.club.leagueName, status: started && idx >= 0 ? `Posição atual: ${idx + 1}º` : 'Não começou' },
+  ];
+  if (obj?.cup != null) goals.push({ text: cupObjective(obj.cup), comp: cup?.name ?? 'Copa nacional', status: 'Em curso' });
+  if (obj?.continental != null) goals.push({ text: continentalObjective(obj.continental), comp: cups.find((c) => c.kind === 'continental')?.name ?? 'Competição continental', status: 'Em curso' });
+  const others = cups.filter((c) => c.id !== (obj?.cup != null ? cup?.id : undefined) && !(obj?.continental != null && c.kind === 'continental'));
   return (
     <Card title="Objetivos da diretoria" help={help}>
-      <div className="rounded-md bg-[#1d1d20] p-2.5">
-        <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-muted"><Crest id={s.club.id} name={s.club.name} ea={ea} size={14} />{s.club.leagueName} · {s.season}</div>
-        <p className="mt-1 text-[15px] font-semibold">{leagueObjective(season.objective)}</p>
-        <p className="mt-0.5 text-xs text-muted tabular-nums">
-          {started && idx >= 0 ? `${idx + 1}º de ${table!.rows.length}` : 'Liga ainda não começou'}
-          {season.played > 0 && ` · ${season.played} J, ${season.won}V ${season.drawn}E ${season.lost}D, ${season.points} pts`}
-        </p>
-      </div>
+      <p className="text-[11px] uppercase tracking-wide text-muted">Curto prazo · {s.season}</p>
+      <ul className="mt-1 space-y-1.5">
+        {goals.map((g, i) => (
+          <li key={i} className="rounded-md bg-[#1d1d20] px-2.5 py-2">
+            <div className="flex items-start justify-between gap-2">
+              <span className="text-[14px] font-semibold leading-snug">{g.text}</span>
+              <span className="shrink-0 text-[11px] text-muted tabular-nums">{g.status}</span>
+            </div>
+            <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted"><Crest id={s.club.id} name={s.club.name} ea={ea} size={12} />{g.comp}</div>
+          </li>
+        ))}
+      </ul>
+      {season.played > 0 && <p className="mt-1.5 text-xs text-muted tabular-nums">Liga: {season.played} J, {season.won}V {season.drawn}E {season.lost}D, {season.points} pts</p>}
       {sec != null && lvl && (
         <div className="mt-3">
           <div className="flex items-center justify-between text-sm"><span>Segurança no cargo</span><span className="flex items-center gap-2"><span className="font-semibold tabular-nums">{sec}</span><span className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-black" style={{ background: lvl.color }}>{lvl.label}</span></span></div>
           <div className="mt-1 h-1.5 rounded bg-[#2c2c30]"><div className="h-full rounded" style={{ width: `${sec}%`, background: lvl.color }} /></div>
         </div>
       )}
-      {cups.length > 0 && (
+      {others.length > 0 && (
         <div className="mt-3">
-          <p className="text-[11px] uppercase tracking-wide text-muted">Outras competições</p>
-          <ul className="mt-1 flex flex-wrap gap-1.5">{cups.map((c) => <li key={c.id} className="rounded bg-[#1d1d20] px-2 py-0.5 text-xs">{c.name}</li>)}</ul>
+          <p className="text-[11px] uppercase tracking-wide text-muted">Sem meta da diretoria</p>
+          <ul className="mt-1 flex flex-wrap gap-1.5">{others.map((c) => <li key={c.id} className="rounded bg-[#1d1d20] px-2 py-0.5 text-xs">{c.name}</li>)}</ul>
         </div>
       )}
       <div className="mt-3">
@@ -295,7 +309,6 @@ export function BoardObjectives({ s, ea }: P) {
         {board.length ? <ul>{board.slice(0, 3).map((x, i) => <PostItem key={i} x={x} ea={ea} dict={MAIL} />)}</ul>
           : <p className="mt-1 text-xs text-muted">Nenhum recado da diretoria ainda.</p>}
       </div>
-      <p className="mt-2 text-[11px] text-muted">Mínimo, meta e stretch de cada competição: em breve.</p>
     </Card>
   );
 }
