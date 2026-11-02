@@ -45,7 +45,7 @@ export function buildContext(s: CareerSnapshot, ea: Names, db: PlayerDb | null, 
     table.rows.forEach((r, i) => L.push(`${i + 1}. ${r.name}${r.teamId === s.club.id ? ' (NÓS)' : ''} – ${r.points} pts, ${r.played} J, ${r.won}V ${r.drawn}E ${r.lost}D, ${r.gf}:${r.ga}`));
   }
   const done = s.matches.filter((x) => x.played).slice(-6);
-  const next = s.matches.filter((x) => !x.played && x.date >= s.gameDate).slice(0, 5);
+  const next = s.matches.filter((x) => !x.played && x.date >= s.gameDate).slice(0, 12);
   if (done.length) { L.push('\n# Últimos jogos'); done.forEach((x) => L.push(`${ymd(x.date)} ${x.competition}: ${x.homeName} ${x.homeGoals}–${x.awayGoals} ${x.awayName}`)); }
   if (next.length) {
     L.push('\n# Próximos jogos');
