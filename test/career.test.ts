@@ -30,7 +30,7 @@ describe.skipIf(!existsSync(join(DIR, 's4.sav')))('resumo da Home com save real'
     const pre = s.standings.find((t) => t.rows.some((r) => r.teamId === 13 && r.played > 0))!;
     expect(pre.title).toBe('Torneio de pré-temporada');
     expect(pre.rows.find((r) => r.teamId === 13)).toMatchObject({ played: 2, points: 0 });
-    expect(JSON.stringify(s).length).toBeLessThan(60_000);
+    expect(JSON.stringify(s).length).toBeLessThan(400_000);
   }, 60_000);
   it('lê jogos, lesões, cartões e transferências', () => {
     expect(s.standings.filter((t) => t.isLeague)).toHaveLength(1);
@@ -107,6 +107,47 @@ describe.skipIf(!existsSync(join(DIR, 's6.sav')))('várias carreiras', () => {
     expect(a.loans.filter((l) => l.dir === 'out').map((l) => l.playerId).sort()).toEqual([211625, 276880, 85704, 89903]);
     expect(a.loans.filter((l) => l.dir === 'in')).toMatchObject([{ playerId: 237658, clubId: 110, until: 20270630 }]);
     expect(b.loans.find((l) => l.playerId === 277309)).toMatchObject({ dir: 'out', buyOption: 11_100_000 });
+    // Moral de todo o elenco também depois de jogo oficial (o save guarda eventos de moral no meio dos registros)
+    expect(s5.squad.filter((p) => p.morale != null)).toHaveLength(s5.squad.length);
+    // Histórico de transferências do mundo (previousteam): a temporada inteira do Pisa
+    expect(b.worldTransfers.length).toBeGreaterThan(1500);
+    // Transferências recentes com valor (trfm, bloco de 70 bytes)
+    expect(b.transfers.find((t) => t.playerId === 240277)).toMatchObject({ date: 20270201, fromName: 'Villarreal CF', toName: 'Milano FC', fee: 21_000_000, wage: 51_000 });
+    expect(b.worldTransfers.filter((t) => t.fee != null).length).toBeGreaterThan(40);
+    // Valor de mercado e forma (pvlm, plfm): Wissa fez o gol no 1x1 com o Liverpool
+    expect(s6.squad.find((p) => p.id === 255069)?.value).toBe(43_000_000);
+    expect(s6.squad.find((p) => p.id === 266127)).toMatchObject({ formScore: 61, formTrend: 5 });
+    expect(s6.squad.filter((p) => p.formScore != null)).toHaveLength(s6.squad.length);
+    // Feed de notícias (socm): time da semana, jogador do mês e a troca América → Pisa
+    expect(b.teamOfWeek[0]).toMatchObject({ date: 20270427, players: expect.arrayContaining([237497, 216531]) });
+    expect(b.playerOfMonth[0]).toMatchObject({ date: 20270505, playerId: 237497, teamName: 'Toluca' });
+    expect(b.news.find((x) => x.key.startsWith('CM_Social_NewManager_WasFired'))).toMatchObject({ date: 20270511 });
+    // E-mails (emlm): aviso de demissão da diretoria
+    expect(b.emails.some((x) => x.key === 'CM_Email_Board_SackWarn')).toBe(true);
+    // OVR dinâmico (dovm): Wissa +4 de forma e −3 de cansaço depois do jogo
+    expect(s6.squad.find((p) => p.id === 266127)).toMatchObject({ ovrForm: 4, ovrFatigue: -3 });
+    expect(s5.squad.find((p) => p.id === 266127)).toMatchObject({ ovrForm: 4, ovrFatigue: 0 });
+    // Temporada passada por competição (stvm)
+    const rawB = readSave(new Uint8Array(readFileSync('saves/b.sav'))), sb = rawB.seasonStats;
+    expect(sb).toHaveLength(3886);
+    // Segurança no cargo dos técnicos da IA (jbom): 836 clubes; o América, que o usuário deixou, volta a 80
+    expect(rawB.jobSecurity).toHaveLength(836);
+    expect(rawB.jobSecurity.find((x) => x.teamId === 1879)?.security).toBe(80);
+    expect(rawB.jobSecurity.some((x) => x.security === 40)).toBe(true);
+    // Listas por liga (psrm): Pisa com 86, 40 e 123 jogadores
+    expect(rawB.leagueLists.map((l) => l.players.length)).toEqual([86, 40, 123, 0, 0, 0]);
+    expect(sb.find((x) => x.playerId === 239085)?.comps[0]).toMatchObject({ competitionId: 818, goals: 27, assists: 8, apps: 35 });
+    expect(sb.find((x) => x.playerId === 230621)?.comps[0]).toMatchObject({ competitionId: 818, cleanSheets: 15, apps: 34 });
+    // Comissão técnica (coam): 4 treinadores do clube + mercado de treinadores
+    expect(b.coaches.filter((c) => c.hired).map((c) => c.name)).toEqual(['Enrico Palmieri', 'Julian Brunel', 'Giulio Valentini', 'Marc Schmitt']);
+    expect(b.coaches.find((c) => c.name === 'Enrico Palmieri')).toMatchObject({ birthDate: 19680520, nationality: 27, wage: 3192, level: 2, ratings: [1, 1, 3, 1] });
+    expect(b.coaches.length).toBe(24);
+    expect(s6.coaches.find((c) => c.name === 'Selma Ritter')).toMatchObject({ hired: true, ratings: [2, 3, 5, 5] });
+    // Orçamentos dos clubes da IA (budm)
+    expect(b.budgets.find((x) => x[0] === 1)).toEqual([1, 264_994_256, 164_438_612, 5_159_799]);
+    // Corrida dos prêmios (igual ao CM Tracker) e técnico do mês em set/2026 no América
+    expect(a.awardsRace.slice(0, 6).map((x) => [x.teamName, x.rank])).toEqual([['Arsenal', 1], ['Manchester City', 2], ['Manchester United', 3], ['Aston Villa', 4], ['Paris Saint-Germain', 1], ['RC Lens', 2]]);
+    expect(b.manager?.awards).toMatchObject([{ date: 20260901, teamName: 'América', type: 0 }]);
     // Pré-temporada: 3 convites no save do América
     expect(a.preseason.map((t) => [t.name, t.prize, t.teams.length])).toEqual([
       ['European International Cup', 2_500_000, 8], ['Champions Trophy', 2_000_000, 8], ['European Shield', 2_100_000, 8]]);

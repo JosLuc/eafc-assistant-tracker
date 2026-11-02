@@ -21,6 +21,12 @@ export interface SquadPlayer {
   /** Papel no elenco: 1 Crucial, 2 Importante, 3 Rodízio, 4 Esporádico, 5 Promessa (módulo pstm). */
   role?: number;
   moraleTeam?: number; moralePlayer?: number; moraleContract?: number;
+  /** Valor de mercado (pvlm), forma 0–100, tendência e últimas notas (plfm). */
+  formScore?: number; formTrend?: number; recentRatings?: number[];
+  /** OVR dinâmico (dovm): pontos de OVR ganhos/perdidos pela forma e pelo cansaço. */
+  ovrForm?: number; ovrFatigue?: number;
+  /** Temporada passada por competição (stvm). */
+  lastSeason?: { competitionId: number; goals: number; assists: number; cleanSheets: number; yellows: number; reds: number; apps: number }[];
   /** Moral 0–100 e seus componentes (módulo pllm). */
   morale?: number; playingTime?: number;
 }
@@ -57,6 +63,8 @@ export interface CareerSnapshot {
     name: string; joined: number; wage?: number; earnings?: number; jobSecurity?: number;
     history?: SeasonRecord[];
     biggestWin?: { score: string; opponent: string; date: number };
+    /** Prêmios do técnico (ex.: técnico do mês). */
+    awards?: { date: number; season: number; teamId: number; teamName: string; type: number; count: number }[];
     worstStreak?: number;
   } | null;
   /** Nomes que o save guarda (jogadores gerados pelo jogo: base e regens). Reais vêm da EA. */
@@ -82,11 +90,25 @@ export interface CareerSnapshot {
   /** Tática ativa e cobradores de bola parada. */
   tactic: Tactic | null;
   /** Transferências pelo mundo registradas no save (persistent_events). */
-  worldTransfers: { date: number; playerId: number; fromId: number; fromName: string; toId: number; toName: string }[];
+  worldTransfers: { date: number; playerId: number; fromId: number; fromName: string; toId: number; toName: string; fee?: number; wage?: number }[];
   /** Empréstimos do clube: emprestados (out) e recebidos (in). */
   loans: Loan[];
   /** Convites de torneios de pré-temporada. */
   preseason: { key: string; name: string; prize: number; teams: { id: number; name: string }[] }[];
+  /** Corrida dos prêmios: times candidatos das grandes ligas (posição na temporada anterior). */
+  /** Orçamento de transferências de cada clube da IA: [teamid, inicial, atual, orçamento salarial]. */
+  budgets: [number, number, number, number][];
+  /** Feed de notícias do jogo (chave do texto, parâmetros [tipo, valor], jogadores, data). */
+  news: { key: string; date: number | null; params: [number, number][]; players: number[] }[];
+  /** E-mails da caixa de entrada (diretoria, lesões, base, empréstimos…). */
+  emails: { key: string; date: number | null; params: [number, number][]; players: number[] }[];
+  /** Times da semana publicados no feed. */
+  teamOfWeek: { date: number | null; players: number[] }[];
+  /** Jogadores do mês publicados no feed. */
+  playerOfMonth: { date: number | null; playerId: number; teamId: number; teamName: string; competitionId: number }[];
+  awardsRace: { teamId: number; teamName: string; leagueId: number; league: string; rank: number; star: number; players: number[] }[];
+  /** Comissão técnica: treinadores do clube (hired) e mercado de treinadores. Função e notas ainda prováveis. */
+  coaches: { id: number; name: string; birthDate: number; nationality: number; wage: number; role: number; level: number; ratings: number[]; hired: boolean }[];
 }
 export interface Loan { dir: 'out' | 'in'; playerId: number; clubId: number; clubName: string; until: number; buyOption: number | null; ovr: number; age: number; pos: number }
 export interface Tactic {
@@ -200,6 +222,18 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
 
   // Papéis e moral do elenco.
   if (save.roles?.teamId === clubId) for (const p of squad) p.role = save.roles.roles.get(p.id);
+  const forms = new Map(save.playerForm.map((f) => [f.playerId, f]));
+  const dyn = new Map(save.dynamicOvr.map((d) => [d.playerId, d]));
+  const prev = new Map(save.seasonStats.map((x) => [x.playerId, x.comps]));
+  for (const p of squad) {
+    p.value = save.playerValues.get(p.id);
+    const f = forms.get(p.id);
+    if (f) { p.formScore = f.form; p.formTrend = f.trend; p.recentRatings = f.ratings; }
+    const d = dyn.get(p.id);
+    if (d) { p.ovrForm = d.form; p.ovrFatigue = d.fatigue; }
+    const ls = prev.get(p.id);
+    if (ls) p.lastSeason = ls;
+  }
   let morale: CareerSnapshot['morale'] = null;
   if (save.morale?.teamId === clubId && save.morale.players.length) {
     const ms = save.morale.players;
@@ -287,6 +321,7 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
       wage: mh?.wage, earnings: mh?.earnings, jobSecurity: mh?.seasons.at(-1)?.jobSecurity,
       history: mh?.seasons.map((x) => ({ ...x, teamName: teamName(x.teamId), league: leagueName(x.leagueId) })),
       biggestWin, worstStreak,
+      awards: (t.career_managerawards ?? []).map((r) => ({ date: toYmd(fromGameDays(num(r, 'receiveddate'))), season: num(r, 'season'), teamId: num(r, 'teamid'), teamName: teamName(num(r, 'teamid')), type: num(r, 'typeid'), count: num(r, 'count') })),
     } : null,
     names, finances: save.finances, morale, scorers, youth, scouts,
     squad,
@@ -302,12 +337,57 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
     stats,
     careerKey: careerKeyOf(mgr, clubId),
     tactic: readTactic(t, clubId),
-    worldTransfers: (t.persistent_events ?? []).filter((e) => num(e, 'eventid') === 5 && num(e, 'player1id') > 0)
-      .map((e) => ({ date: num(e, 'eventdate'), playerId: num(e, 'player1id'), fromId: num(e, 'team1id'), fromName: teamName(num(e, 'team1id')), toId: num(e, 'team2id'), toName: teamName(num(e, 'team2id')) }))
-      .sort((a, b) => b.date - a.date),
+    worldTransfers: worldTransfers(save, teamName, players),
+    news: save.social.filter((x) => !x.key.startsWith('CM_SM_')),
+    emails: save.emails,
+    teamOfWeek: save.social.filter((x) => x.key.startsWith('CM_Player_Awards') && x.players.length === 11).map((x) => ({ date: x.date, players: x.players })),
+    playerOfMonth: save.social.filter((x) => x.key === 'CM_Social_POTM_UM').map((x) => {
+      const get = (...types: number[]) => x.params.find(([t]) => types.includes(t))?.[1] ?? 0;
+      return { date: x.date, playerId: get(8, 10), teamId: get(15, 16), teamName: teamName(get(15, 16)), competitionId: get(28) };
+    }),
+    budgets: save.budgets.map((x) => [x.teamId, x.initial, x.current, x.wageBudget]),
+    awardsRace: save.awardsRace.map((x) => ({ ...x, teamName: teamName(x.teamId), league: leagueName(x.leagueId) })),
     loans: clubLoans(save, clubId, teamName, players, today),
+    coaches: save.coaches.map((c) => ({ id: c.id, name: `${c.firstName} ${c.lastName}`, birthDate: c.birthDate, nationality: c.nationality, wage: c.wage, role: c.role, level: c.level, ratings: c.ratings, hired: c.hired })),
     preseason: save.preseason.map((x) => ({ key: x.key, name: x.name, prize: x.prize, teams: x.teams.map((id) => ({ id, name: teamName(id) })) })),
   };
+}
+
+/**
+ * Transferências do mundo inteiro na carreira. Fontes:
+ *  - previousteam (clube anterior) + teamplayerlinks (clube atual) + players.playerjointeamdate (data):
+ *    o jogo acrescenta uma linha a cada transferência, então dá o histórico completo (1.743 no fim da temporada do Pisa);
+ *  - persistent_events eventid 5 (transferências marcantes);
+ *  - trfm (só as recentes, com valor e salário).
+ * O valor só existe para as recentes; o jogo não guarda o das antigas.
+ */
+function worldTransfers(save: CareerSave, teamName: (id: number) => string, players: Map<number, Row>) {
+  const t = save.tables;
+  const intl = new Set((t.leagues ?? []).filter((l) => num(l, 'isinternationalleague')).map((l) => num(l, 'leagueid')));
+  const clubs = new Set((t.leagueteamlinks ?? []).filter((l) => !intl.has(num(l, 'leagueid'))).map((l) => num(l, 'teamid')));
+  const club = new Map<number, number>();
+  for (const l of t.teamplayerlinks ?? []) if (clubs.has(num(l, 'teamid'))) club.set(num(l, 'playerid'), num(l, 'teamid'));
+  // Só o que aconteceu na carreira (o banco inicial já traz o clube anterior de quem chegou antes).
+  const careerStart = 20260701;
+  const fee = new Map(save.transfers.map((x) => [`${x.playerId}-${x.toTeam}`, x]));
+  const out = new Map<string, CareerSnapshot['worldTransfers'][number]>();
+  const add = (x: CareerSnapshot['worldTransfers'][number]) => { const k = `${x.playerId}-${x.toId}`; if (!out.has(k) || (x.fee && !out.get(k)!.fee)) out.set(k, x); };
+  for (const r of t.previousteam ?? []) {
+    const pid = num(r, 'playerid'), from = num(r, 'previousteamid'), to = club.get(pid);
+    const date = toYmd(fromGameDays(num(players.get(pid), 'playerjointeamdate')));
+    if (to == null || to === from || date < careerStart) continue;
+    const f = fee.get(`${pid}-${to}`);
+    add({ date, playerId: pid, fromId: from, fromName: teamName(from), toId: to, toName: teamName(to), fee: f?.fee, wage: f?.wage });
+  }
+  for (const x of save.transfers) {
+    if (x.date < careerStart) continue;
+    add({ date: x.date, playerId: x.playerId, fromId: x.fromTeam, fromName: teamName(x.fromTeam), toId: x.toTeam, toName: teamName(x.toTeam), fee: x.fee, wage: x.wage });
+  }
+  for (const e of t.persistent_events ?? []) {
+    if (num(e, 'eventid') !== 5 || num(e, 'player1id') <= 0) continue;
+    add({ date: num(e, 'eventdate'), playerId: num(e, 'player1id'), fromId: num(e, 'team1id'), fromName: teamName(num(e, 'team1id')), toId: num(e, 'team2id'), toName: teamName(num(e, 'team2id')) });
+  }
+  return [...out.values()].sort((a, b) => b.date - a.date);
 }
 
 function clubLoans(save: CareerSave, clubId: number, teamName: (id: number) => string, players: Map<number, Row>, today: Date): Loan[] {

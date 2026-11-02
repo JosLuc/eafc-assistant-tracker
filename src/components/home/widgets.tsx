@@ -246,36 +246,47 @@ function TransferRow({ t, s, ea, fee = true }: { t: { date: number; playerId: nu
           <Crest id={t.fromId} name={t.fromName} ea={ea} size={12} />{t.fromName} → <Crest id={t.toId} name={t.toName} ea={ea} size={12} />{t.toName}
         </div>
       </div>
-      <div className="text-right">{fee && <div className="text-xs font-semibold tabular-nums">{t.fee ? money(t.fee) : 'Livre'}</div>}<div className="text-[10px] text-muted">{dateBr(t.date).slice(0, 5)}</div></div>
+      <div className="text-right">{fee && <div className="text-xs font-semibold tabular-nums">{feeText(t)}</div>}<div className="text-[10px] text-muted">{dateBr(t.date).slice(0, 5)}</div></div>
     </li>
   );
 }
 
+/** Todas as transferências conhecidas: as recentes com valor (trfm) e o histórico do mundo (previousteam), acumuladas de todos os saves. */
+function allTransfers(s: CareerSnapshot) {
+  const map = new Map<string, { date: number; playerId: number; fromId: number; fromName: string; toId: number; toName: string; fee?: number; wage?: number }>();
+  for (const t of [...(s.worldTransfers ?? []), ...s.transfers]) {
+    const k = `${t.playerId}-${t.toId}`;
+    const old = map.get(k);
+    if (!old || (t.fee != null && old.fee == null)) map.set(k, { ...old, ...t });
+  }
+  return [...map.values()].sort((a, b) => b.date - a.date);
+}
+const feeText = (t: { fee?: number }) => t.fee == null ? '—' : t.fee ? money(t.fee) : 'Livre';
+
 /** Mercado: as transferências pelo mundo que o save registra. */
 export function TransferMarket({ s, ea }: P) {
-  const deals = s.transfers.filter((t) => t.toId !== s.club.id && t.fromId !== s.club.id);
-  const world = s.worldTransfers ?? [];
-  const list = [...deals.map((t) => ({ ...t, hasFee: true })), ...world.filter((w) => !deals.some((d) => d.playerId === w.playerId)).map((t) => ({ ...t, fee: 0, hasFee: false }))]
-    .sort((a, b) => b.date - a.date);
-  if (!list.length) return <Card title="Mercado de transferências" help="Transferências entre outros clubes registradas no save." empty="Nenhuma transferência registrada neste save. Aparece quando os clubes negociam." />;
+  const list = allTransfers(s).filter((t) => t.toId !== s.club.id && t.fromId !== s.club.id);
+  const help = 'Transferências entre outros clubes na carreira. O save guarda o clube anterior de cada jogador, então o histórico é completo; o valor só aparece nas mais recentes (o jogo apaga o das antigas, por isso vale enviar saves com frequência).';
+  if (!list.length) return <Card title="Mercado de transferências" help={help} empty="Nenhuma transferência registrada neste save. Aparece quando os clubes negociam." />;
   return (
-    <Card title="Mercado de transferências" help="Transferências entre outros clubes que o save registra (o jogo guarda só as mais recentes; o app acumula as de todos os saves da carreira)."
-      more={() => <Table head={['Data', 'Jogador', 'De', 'Para', 'Valor']} align={['l', 'l', 'l', 'l', 'r']} rows={list.map((t) => [dateBr(t.date), <PlayerName key="n" id={t.playerId} ea={ea} />, t.fromName, t.toName, t.hasFee ? (t.fee ? money(t.fee) : 'Livre') : '—'])} />}>
-      <ul className="space-y-1">{list.slice(0, 7).map((t, i) => <TransferRow key={i} t={t} s={s} ea={ea} fee={t.hasFee} />)}</ul>
+    <Card title="Mercado de transferências" help={help}
+      more={() => <Table head={['Data', 'Jogador', 'De', 'Para', 'Valor']} align={['l', 'l', 'l', 'l', 'r']} rows={list.map((t) => [dateBr(t.date), <PlayerName key="n" id={t.playerId} ea={ea} />, t.fromName, t.toName, feeText(t)])} />}>
+      <div className="mb-2 text-xs text-muted">{list.length} transferências na carreira</div>
+      <ul className="space-y-1">{list.slice(0, 6).map((t, i) => <TransferRow key={i} t={t} s={s} ea={ea} fee={t.fee != null} />)}</ul>
     </Card>
   );
 }
 
 export function Transfers({ s, ea }: P) {
-  const list = s.transfers.filter((t) => t.toId === s.club.id || t.fromId === s.club.id);
-  if (!list.length) return <Card title="Transferências da temporada" help="Contratações e vendas do seu clube." empty="Seu clube ainda não fez negócios nesta temporada." />;
-  const spent = list.filter((t) => t.toId === s.club.id).reduce((a, t) => a + t.fee, 0);
-  const got = list.filter((t) => t.fromId === s.club.id).reduce((a, t) => a + t.fee, 0);
+  const list = allTransfers(s).filter((t) => t.toId === s.club.id || t.fromId === s.club.id);
+  if (!list.length) return <Card title="Transferências do clube" help="Contratações e vendas do seu clube." empty="Seu clube ainda não fez negócios na carreira." />;
+  const spent = list.filter((t) => t.toId === s.club.id).reduce((a, t) => a + (t.fee ?? 0), 0);
+  const got = list.filter((t) => t.fromId === s.club.id).reduce((a, t) => a + (t.fee ?? 0), 0);
   return (
-    <Card title="Transferências da temporada" help="Contratações e vendas do seu clube, com valor e salário."
-      more={() => <Table head={['Data', 'Jogador', 'De', 'Para', 'Valor', 'Salário/sem']} align={['l', 'l', 'l', 'l', 'r', 'r']} rows={list.map((t) => [dateBr(t.date), <PlayerName key="n" id={t.playerId} ea={ea} />, t.fromName, t.toName, t.fee ? money(t.fee) : 'Livre', t.wage ? money(t.wage) : '—'])} />}>
-      <div className="mb-2 flex gap-4 text-xs"><span>Gasto <b className="text-bad">{money(spent)}</b></span><span>Recebido <b className="text-good">{money(got)}</b></span></div>
-      <ul className="space-y-1">{list.slice(0, 6).map((t, i) => <TransferRow key={i} t={t} s={s} ea={ea} />)}</ul>
+    <Card title="Transferências do clube" help="Contratações e vendas do seu clube na carreira, com valor e salário quando o save ainda guarda."
+      more={() => <Table head={['Data', 'Jogador', 'De', 'Para', 'Valor', 'Salário/sem']} align={['l', 'l', 'l', 'l', 'r', 'r']} rows={list.map((t) => [dateBr(t.date), <PlayerName key="n" id={t.playerId} ea={ea} />, t.fromName, t.toName, feeText(t), t.wage ? money(t.wage) : '—'])} />}>
+      <div className="mb-2 flex gap-4 text-xs"><span>Chegaram <b>{list.filter((t) => t.toId === s.club.id).length}</b></span><span>Saíram <b>{list.filter((t) => t.fromId === s.club.id).length}</b></span><span>Gasto <b className="text-bad">{money(spent)}</b></span><span>Recebido <b className="text-good">{money(got)}</b></span></div>
+      <ul className="space-y-1">{list.slice(0, 6).map((t, i) => <TransferRow key={i} t={t} s={s} ea={ea} fee={t.fee != null} />)}</ul>
     </Card>
   );
 }
@@ -716,6 +727,9 @@ export function GoldenBoot({ s, ea }: P) {
 
 const OBJECTIVE: Record<number, string> = { 0: 'Ser campeão da liga', 6: 'Conseguir o acesso direto' };
 
+const MANAGER_AWARD: Record<number, string> = { 0: 'Técnico do mês' };
+const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
 export function ManagerCV({ s }: P) {
   const m = s.manager;
   if (!m) return <Card title="Currículo do técnico" empty="Não achei o técnico neste save." />;
@@ -728,6 +742,7 @@ export function ManagerCV({ s }: P) {
       <Stat label="Maior vitória" value={m.biggestWin ? `${m.biggestWin.score} vs ${m.biggestWin.opponent}` : '—'} />
       <Stat label="Pior sequência de derrotas" value={m.worstStreak ?? 0} />
       <Stat label="No clube desde" value={dateBr(m.joined)} />
+      {(m.awards?.length ?? 0) > 0 && <Stat label="Prêmios" value={m.awards!.map((a) => `${MANAGER_AWARD[a.type] ?? 'Prêmio'} (${MONTHS[fromYmd(a.date).getUTCMonth()]}/${String(fromYmd(a.date).getUTCFullYear()).slice(2)}, ${a.teamName})`).join(' · ')} />}
       {clubs.length > 0 && (
         <ul className="mt-2 space-y-1 border-t border-line pt-2 text-xs">
           {clubs.map((c, i) => (
@@ -962,6 +977,26 @@ export function PreseasonTour({ s, ea }: P) {
           <div className="flex items-center justify-between font-semibold">{t.name}<span className="text-[10px] font-normal uppercase text-muted">{inTour(t) ? 'a decidir' : ''}</span></div>
           <div className="flex justify-between text-xs text-muted"><span>Times</span><b className="text-white">{t.teams.length}</b></div>
           <div className="flex justify-between text-xs text-muted"><span>Prêmio</span><b className="text-white">{money(t.prize)}</b></div>
+        </li>
+      ))}</ul>
+    </Card>
+  );
+}
+
+/** Corrida dos prêmios: os candidatos das grandes ligas, como no CM Tracker (pela posição na temporada anterior). */
+export function AwardsRace({ s, ea }: P) {
+  const list = s.awardsRace ?? [];
+  const help = 'Times candidatos aos prêmios da temporada nas grandes ligas, pela posição na temporada anterior. O jogo guarda o elenco de cada um.';
+  if (!list.length) return <Card title="Corrida dos prêmios" help={help} empty="O save não trouxe a corrida dos prêmios." />;
+  return (
+    <Card title="Corrida dos prêmios" help={help}
+      more={() => <Table head={['Time', 'Liga', 'Posição', 'Jogadores']} align={['l', 'l', 'r', 'r']}
+        rows={list.map((x) => [<span key="t" className="flex items-center gap-1"><Crest id={x.teamId} name={x.teamName} ea={ea} size={14} />{x.teamName}</span>, x.league, x.rank ? `${x.rank}º` : '—', x.players.length])} />}>
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">Candidatos da temporada</div>
+      <ul>{list.slice(0, 6).map((x) => (
+        <li key={`${x.leagueId}-${x.teamId}`} className="flex items-center gap-2 py-1 text-sm">
+          <Crest id={x.teamId} name={x.teamName} ea={ea} size={20} />
+          <div className="min-w-0"><div className="truncate font-semibold">{x.teamName}</div><div className="text-[11px] text-muted">{x.league} · {x.rank ? `${x.rank}º` : '—'} na temporada passada</div></div>
         </li>
       ))}</ul>
     </Card>
