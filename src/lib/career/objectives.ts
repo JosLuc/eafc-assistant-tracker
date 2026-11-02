@@ -3,7 +3,7 @@
  * Códigos conferidos: 0 no América (Liga MX), 6 no Pisa (Serie B, acesso direto), 2 no Newcastle (print do jogo: zona da Champions).
  * Os outros textos ainda não foram confirmados com a tela do jogo.
  */
-export const LEAGUE_OBJECTIVE: Record<number, string> = { 0: 'Ser campeão da liga', 2: 'Terminar na zona da Champions League', 6: 'Conseguir o acesso direto' };
+export const LEAGUE_OBJECTIVE: Record<number, string> = { 0: 'Ser campeão da liga', 2: 'Terminar na zona da Champions League', 6: 'Conquistar o acesso automático' };
 
 export const leagueObjective = (code: number) => LEAGUE_OBJECTIVE[code] ?? `Meta da liga (código ${code})`;
 
