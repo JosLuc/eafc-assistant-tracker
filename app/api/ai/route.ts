@@ -7,11 +7,13 @@ import { NextResponse } from 'next/server';
 // Plano gratuito da Vercel aceita até 300 s; cada provedor tem seu próprio limite abaixo.
 export const maxDuration = 120;
 const GEMINI_TIMEOUT = 45_000, GROQ_TIMEOUT = 40_000;
-const GROQ_CONTEXT = 12_000;
+const GROQ_CONTEXT = 10_000;
 
 export interface AiMessage { role: 'user' | 'assistant'; content: string; images?: string[] }
 export interface AiRequest { messages: AiMessage[]; context: string }
-export interface AiResponse { text?: string; provider?: 'gemini' | 'groq'; error?: string }
+export interface AiResponse { text?: string; provider?: 'gemini' | 'groq'; error?: string; truncated?: boolean }
+/** Marca interna de resposta cortada pelo limite de tamanho; a rota tira e devolve truncated. */
+const CUT = '\u0000CUT';
 
 const SYSTEM = `Você é o Auxiliar, auxiliar técnico de um jogador do Modo Carreira do EA SPORTS FC 27. Fale em português do Brasil, como um auxiliar experiente conversando com o técnico: direto, confiante e específico.
 
@@ -23,13 +25,14 @@ COMO RESPONDER
 
 FORMATO (Markdown)
 - Títulos de seção com "### ".
-- Escalações e comparações sempre em tabela Markdown, por exemplo: | Pos | Jogador | OVR | Por quê |.
+- Escalações e comparações sempre em tabela Markdown com barras verticais, por exemplo: | Pos | Jogador | OVR | Por quê |. Nunca use tabulação para separar colunas.
 - Calendário em tabela: | Data | Jogo | Competição | Time a usar |.
 - Listas curtas com "- ". Negrito só em nomes e números-chave.
 - Táticas: formação, instruções de equipe do FC 27 (construção, profundidade defensiva, largura etc.) e a Role (função) de cada titular.
 - Negociações: valor justo, primeira oferta, teto, salário e quando desistir, em tabela.
 - Termine com uma seção "### Próximo passo" de 1 a 3 itens práticos.
-- Sem introduções do tipo "Claro!" ou "Ótima pergunta". Tamanho: completo, mas sem enrolação.
+- Sem introduções do tipo "Claro!" ou "Ótima pergunta".
+- Seja enxuto: no máximo umas 600 palavras. Tabelas com poucas colunas (ex.: Pos | Jogador | OVR | Por quê, com o "por quê" em poucas palavras). Não repita a mesma escalação em várias tabelas: para reserva e misto, liste só quem muda em relação ao titular.
 
 Se receber print de negociação, renovação ou outra tela do jogo, leia os números do print e use-os. Se faltar um dado, diga qual falta.`;
 
@@ -93,7 +96,7 @@ async function gemini(key: string, req: AiRequest, model: string, thinking = tru
   }));
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': key }, signal: AbortSignal.timeout(GEMINI_TIMEOUT),
-    body: JSON.stringify({ systemInstruction: { parts: [{ text: `${SYSTEM}\n\nDADOS DO SAVE:\n${req.context}` }] }, contents, generationConfig: { temperature: 0.6, ...(thinking ? { thinkingConfig: { thinkingLevel: 'low' } } : {}) } }),
+    body: JSON.stringify({ systemInstruction: { parts: [{ text: `${SYSTEM}\n\nDADOS DO SAVE:\n${req.context}` }] }, contents, generationConfig: { temperature: 0.6, maxOutputTokens: 8192, ...(thinking ? { thinkingConfig: { thinkingLevel: 'low' } } : {}) } }),
   });
   // Modelos que não aceitam o nível de raciocínio: tenta de novo sem ele.
   if (res.status === 400 && thinking) return gemini(key, req, model, false);
@@ -101,9 +104,9 @@ async function gemini(key: string, req: AiRequest, model: string, thinking = tru
   if (res.status === 503 && retry) { await new Promise((r) => setTimeout(r, 1500)); return gemini(key, req, model, thinking, false); }
   if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const d = await res.json();
-  const text = (d.candidates?.[0]?.content?.parts ?? []).map((p: { text?: string }) => p.text ?? '').join('');
+  const text = (d.candidates?.[0]?.content?.parts ?? []).map((p: { text?: string; thought?: boolean }) => (p.thought ? '' : p.text ?? '')).join('');
   if (!text) throw new Error('Gemini sem resposta');
-  return text;
+  return d.candidates?.[0]?.finishReason === 'MAX_TOKENS' ? text + CUT : text;
 }
 
 async function groq(key: string, req: AiRequest, model: string): Promise<string> {
@@ -115,14 +118,16 @@ async function groq(key: string, req: AiRequest, model: string): Promise<string>
   ];
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(GROQ_TIMEOUT),
-    body: JSON.stringify({ model, messages, temperature: 0.6, max_completion_tokens: 2000, ...(model.startsWith('openai/gpt-oss') ? { reasoning_effort: 'low' } : {}) }),
+    body: JSON.stringify({ model, messages, temperature: 0.6, max_completion_tokens: 3500, ...(model.startsWith('openai/gpt-oss') ? { reasoning_effort: 'low' } : {}) }),
   });
   if (!res.ok) throw new Error(`Groq ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const d = await res.json();
   const text = d.choices?.[0]?.message?.content;
   if (!text) throw new Error('Groq sem resposta');
-  return text;
+  return d.choices?.[0]?.finish_reason === 'length' ? text + CUT : text;
 }
+
+const reply = (t: string, provider: 'gemini' | 'groq') => NextResponse.json<AiResponse>({ text: t.replace(CUT, ''), provider, truncated: t.endsWith(CUT) });
 
 export async function GET() {
   return NextResponse.json({ gemini: !!process.env.GEMINI_API_KEY, groq: !!process.env.GROQ_API_KEY });
@@ -137,7 +142,7 @@ export async function POST(r: Request) {
   if (!gk && !qk) return NextResponse.json<AiResponse>({ error: 'sem-chaves' }, { status: 503 });
   const errors: string[] = [];
   if (gk) {
-    try { return NextResponse.json<AiResponse>({ text: await firstOk(await geminiModels(gk), (m) => gemini(gk, body, m)), provider: 'gemini' }); }
+    try { return reply(await firstOk(await geminiModels(gk), (m) => gemini(gk, body, m)), 'gemini'); }
     catch (e) { errors.push(String(e)); console.warn('ai: gemini falhou, indo para o Groq:', String(e)); }
   }
   if (qk) {
@@ -148,7 +153,7 @@ export async function POST(r: Request) {
         context: body.context.slice(0, GROQ_CONTEXT),
         messages: body.messages.slice(-4).map((m) => (m.role === 'assistant' ? { ...m, content: m.content.slice(0, 1200) } : m)),
       };
-      return NextResponse.json<AiResponse>({ text: await firstOk(body.messages.some((m) => m.images?.length) ? gm.vision : gm.text, (m) => groq(qk, lite, m)), provider: 'groq' });
+      return reply(await firstOk(body.messages.some((m) => m.images?.length) ? gm.vision : gm.text, (m) => groq(qk, lite, m)), 'groq');
     }
     catch (e) { errors.push(String(e)); }
   }
