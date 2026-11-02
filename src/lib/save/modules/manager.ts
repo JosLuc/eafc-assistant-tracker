@@ -16,7 +16,9 @@ export interface ManagerSeason {
   goalsFor: number; goalsAgainst: number; points: number; position: number; spent: number; jobSecurity: number;
 }
 export interface ManagerMatch { date: number; home: boolean; friendly: boolean; homeGoals: number; awayGoals: number; opponentKey: number; scorers: { playerId: number; goals: number }[] }
-export interface ManagerHistory { clubId: number; joined: number; careerStart: number; wage: number; earnings: number; seasons: ManagerSeason[]; matches: ManagerMatch[] }
+/** Objetivos da diretoria da temporada atual: 01 | clube u32 | 01 00 | liga u16 | liga u8 | continental u8 | copa u8 (ff = sem objetivo). */
+export interface BoardObjectives { leagueId: number; league: number | null; continental: number | null; cup: number | null }
+export interface ManagerHistory { clubId: number; joined: number; careerStart: number; wage: number; earnings: number; seasons: ManagerSeason[]; matches: ManagerMatch[]; objectives?: BoardObjectives }
 
 export function readManagerHistory(m: Uint8Array, isTeam: (id: number) => boolean): ManagerHistory | null {
   const h = 120;
@@ -53,5 +55,13 @@ export function readManagerHistory(m: Uint8Array, isTeam: (id: number) => boolea
     i = p + 16;
   }
   out.matches.sort((a, b) => a.date - b.date);
+  // Conferido com o print do jogo (Newcastle: liga 2 = zona da Champions, copa 7 = vencer a copa) e com América/Pisa.
+  const league = out.seasons.filter((x) => x.teamId === out.clubId).at(-1)?.leagueId;
+  for (let k = h + 40; league != null && k + 14 < m.length; k++) {
+    if (m[k - 1] !== 1 || u32(m, k) !== out.clubId || m[k + 4] !== 1 || m[k + 5] !== 0 || u16(m, k + 6) !== league) continue;
+    const v = (x: number) => (x === 0xff ? null : x);
+    out.objectives = { leagueId: league, league: v(m[k + 8]!), continental: v(m[k + 9]!), cup: v(m[k + 10]!) };
+    break;
+  }
   return out;
 }

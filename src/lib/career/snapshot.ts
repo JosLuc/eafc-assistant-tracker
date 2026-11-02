@@ -76,6 +76,8 @@ export interface CareerSnapshot {
     /** Prêmios do técnico (ex.: técnico do mês). */
     awards?: { date: number; season: number; teamId: number; teamName: string; type: number; count: number }[];
     worstStreak?: number;
+    /** Objetivos da diretoria da temporada (mhrm): códigos de liga, continental e copa (null = sem objetivo). */
+    objectives?: { league: number | null; continental: number | null; cup: number | null };
   } | null;
   /** Nomes que o save guarda (jogadores gerados pelo jogo: base e regens). Reais vêm da EA. */
   names: Record<number, string>;
@@ -368,6 +370,7 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
       wage: mh?.wage, earnings: mh?.earnings, careerStart: mh?.careerStart, jobSecurity: mh?.seasons.at(-1)?.jobSecurity,
       history: mh?.seasons.map((x) => ({ ...x, teamName: teamName(x.teamId), league: leagueName(x.leagueId) })),
       biggestWin, worstStreak,
+      objectives: mh?.objectives ? { league: mh.objectives.league, continental: mh.objectives.continental, cup: mh.objectives.cup } : undefined,
       awards: (t.career_managerawards ?? []).map((r) => ({ date: toYmd(fromGameDays(num(r, 'receiveddate'))), season: num(r, 'season'), teamId: num(r, 'teamid'), teamName: teamName(num(r, 'teamid')), type: num(r, 'typeid'), count: num(r, 'count') })),
     } : null,
     names, finances: save.finances, morale, scorers, youth, scouts,
