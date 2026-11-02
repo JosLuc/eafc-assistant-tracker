@@ -40,10 +40,6 @@ export function buildContext(s: CareerSnapshot, ea: Names, db: PlayerDb | null, 
   if (s.tactic) L.push(`Tática ativa: ${s.tactic.name} (${s.tactic.formation}), titulares: ${s.tactic.players.map((p) => `${posLabel(p.pos)} ${name(p.playerId)}`).join(', ')}.`);
 
   const table = s.standings.find((t) => t.isLeague);
-  if (table) {
-    L.push(`\n# Tabela (${table.title})`);
-    table.rows.forEach((r, i) => L.push(`${i + 1}. ${r.name}${r.teamId === s.club.id ? ' (NÓS)' : ''} – ${r.points} pts, ${r.played} J, ${r.won}V ${r.drawn}E ${r.lost}D, ${r.gf}:${r.ga}`));
-  }
   const done = s.matches.filter((x) => x.played).slice(-6);
   const next = s.matches.filter((x) => !x.played && x.date >= s.gameDate).slice(0, 12);
   if (done.length) { L.push('\n# Últimos jogos'); done.forEach((x) => L.push(`${ymd(x.date)} ${x.competition}: ${x.homeName} ${x.homeGoals}–${x.awayGoals} ${x.awayName}`)); }
@@ -55,6 +51,7 @@ export function buildContext(s: CareerSnapshot, ea: Names, db: PlayerDb | null, 
       L.push(`${ymd(x.date)} ${x.competition}: ${x.homeName} x ${x.awayName}${pos >= 0 ? ` (adversário ${pos + 1}º na liga)` : ''}`);
     });
   }
+
 
   L.push('\n# Elenco (pos, idade, OVR/POT, forma, moral, condição, papel, salário, contrato; atributos principais; Roles; PlayStyles)');
   const c = db?.cols;
@@ -88,6 +85,10 @@ export function buildContext(s: CareerSnapshot, ea: Names, db: PlayerDb | null, 
   if (league) {
     const mine = league.players.filter((x) => x.teamId === s.club.id && x.apps > 0).sort((a, b) => b.goals - a.goals || b.avgRating - a.avgRating).slice(0, 12);
     if (mine.length) { L.push('\n# Estatísticas na liga'); mine.forEach((x) => L.push(`${name(x.playerId)}: ${x.apps} J, ${x.goals} G, ${x.assists} A, nota ${x.avgRating.toFixed(1)}`)); }
+  }
+  if (table) {
+    L.push(`\n# Tabela (${table.title})`);
+    table.rows.forEach((r, i) => L.push(`${i + 1}. ${r.name}${r.teamId === s.club.id ? ' (NÓS)' : ''} – ${r.points} pts, ${r.played} J, ${r.won}V ${r.drawn}E ${r.lost}D, ${r.gf}:${r.ga}`));
   }
   if (s.youth.length) { L.push('\n# Base'); s.youth.forEach((y) => L.push(`${name(y.id)}: ${posLabel(y.pos)}, ${y.age} anos, ${y.ovr}/${y.pot}`)); }
   if (s.loans.length) L.push(`\nEmpréstimos: ${s.loans.length}.`);

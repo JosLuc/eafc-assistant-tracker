@@ -6,7 +6,8 @@ import { NextResponse } from 'next/server';
  */
 // Plano gratuito da Vercel aceita até 300 s; cada provedor tem seu próprio limite abaixo.
 export const maxDuration = 120;
-const GEMINI_TIMEOUT = 50_000, GROQ_TIMEOUT = 45_000;
+const GEMINI_TIMEOUT = 45_000, GROQ_TIMEOUT = 40_000;
+const GROQ_CONTEXT = 12_000;
 
 export interface AiMessage { role: 'user' | 'assistant'; content: string; images?: string[] }
 export interface AiRequest { messages: AiMessage[]; context: string }
@@ -48,10 +49,13 @@ async function geminiModels(key: string): Promise<string[]> {
     const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': key }, signal: AbortSignal.timeout(8000) });
     const d = (await r.json()) as { models?: { name: string; supportedGenerationMethods?: string[] }[] };
     const names = (d.models ?? []).filter((m) => m.supportedGenerationMethods?.includes('generateContent')).map((m) => m.name.replace(/^models\//, ''))
-      .filter((n) => /^gemini-[\d.]+-flash$/.test(n)).sort((a, b) => ver(b) - ver(a));
-    if (names.length) { geminiCache = { at: Date.now(), models: [...names.slice(0, 2), 'gemini-flash-latest'] }; return geminiCache.models; }
+      .sort((a, b) => ver(b) - ver(a));
+    const flash = names.filter((n) => /^gemini-[\d.]+-flash$/.test(n));
+    const lite = names.filter((n) => /^gemini-[\d.]+-flash-lite$/.test(n));
+    // Flash mais novo, o anterior e, se todos estiverem sobrecarregados, o Flash-Lite (outro "pool" de capacidade).
+    if (flash.length) { geminiCache = { at: Date.now(), models: [...flash.slice(0, 2), ...lite.slice(0, 1)] }; return geminiCache.models; }
   } catch { /* usa a lista padrão */ }
-  return ['gemini-flash-latest'];
+  return ['gemini-flash-latest', 'gemini-flash-lite-latest'];
 }
 
 async function groqModels(key: string): Promise<{ text: string[]; vision: string[] }> {
@@ -61,13 +65,13 @@ async function groqModels(key: string): Promise<{ text: string[]; vision: string
       const r = await fetch('https://api.groq.com/openai/v1/models', { headers: { authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(8000) });
       const ids = ((await r.json()) as { data?: { id: string; active?: boolean }[] }).data?.filter((m) => m.active !== false).map((m) => m.id) ?? [];
       const pick = (res: RegExp[]) => res.flatMap((re) => ids.filter((id) => re.test(id)));
-      const text = [...new Set(pick([/gpt-oss-120b/, /llama-?4.*maverick/i, /qwen.*3.*32b/i, /llama.*70b/i, /gpt-oss-20b/]))];
+      const text = [...new Set(pick([/gpt-oss-120b/, /llama-?4.*maverick/i, /llama-?4.*scout/i, /qwen.*3.*32b/i, /llama.*70b/i]))];
       const vision = [...new Set(pick([/llama-?4.*maverick/i, /llama-?4.*scout/i, /vision|vl/i]))];
       if (ids.length) groqCache = { at: Date.now(), text, vision };
     } catch { /* usa a lista padrão */ }
   }
   return {
-    text: ft.length ? ft : groqCache?.text.length ? groqCache.text.slice(0, 3) : ['openai/gpt-oss-120b'],
+    text: ft.length ? ft : groqCache?.text.length ? groqCache.text.slice(0, 3) : ['openai/gpt-oss-120b', 'meta-llama/llama-4-scout-17b-16e-instruct'],
     vision: fv.length ? fv : groqCache?.vision.length ? groqCache.vision.slice(0, 2) : ['meta-llama/llama-4-scout-17b-16e-instruct'],
   };
 }
@@ -82,7 +86,7 @@ async function firstOk(models: string[], call: (model: string) => Promise<string
 
 const splitDataUrl = (u: string) => { const m = /^data:([^;]+);base64,(.*)$/.exec(u); return m ? { mime: m[1]!, data: m[2]! } : null; };
 
-async function gemini(key: string, req: AiRequest, model: string, thinking = true): Promise<string> {
+async function gemini(key: string, req: AiRequest, model: string, thinking = true, retry = true): Promise<string> {
   const contents = req.messages.map((m) => ({
     role: m.role === 'assistant' ? 'model' : 'user',
     parts: [{ text: m.content }, ...(m.images ?? []).map(splitDataUrl).filter(Boolean).map((x) => ({ inline_data: { mime_type: x!.mime, data: x!.data } }))],
@@ -93,6 +97,8 @@ async function gemini(key: string, req: AiRequest, model: string, thinking = tru
   });
   // Modelos que não aceitam o nível de raciocínio: tenta de novo sem ele.
   if (res.status === 400 && thinking) return gemini(key, req, model, false);
+  // Sobrecarga do Google (503) costuma passar em segundos: uma nova tentativa antes de trocar de modelo.
+  if (res.status === 503 && retry) { await new Promise((r) => setTimeout(r, 1500)); return gemini(key, req, model, thinking, false); }
   if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const d = await res.json();
   const text = (d.candidates?.[0]?.content?.parts ?? []).map((p: { text?: string }) => p.text ?? '').join('');
@@ -109,7 +115,7 @@ async function groq(key: string, req: AiRequest, model: string): Promise<string>
   ];
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(GROQ_TIMEOUT),
-    body: JSON.stringify({ model, messages, temperature: 0.6, ...(model.startsWith('openai/gpt-oss') ? { reasoning_effort: 'low' } : {}) }),
+    body: JSON.stringify({ model, messages, temperature: 0.6, max_completion_tokens: 2000, ...(model.startsWith('openai/gpt-oss') ? { reasoning_effort: 'low' } : {}) }),
   });
   if (!res.ok) throw new Error(`Groq ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const d = await res.json();
@@ -137,10 +143,16 @@ export async function POST(r: Request) {
   if (qk) {
     try {
       const gm = await groqModels(qk);
-      return NextResponse.json<AiResponse>({ text: await firstOk(body.messages.some((m) => m.images?.length) ? gm.vision : gm.text, (m) => groq(qk, body, m)), provider: 'groq' });
+      // O plano gratuito do Groq limita o tamanho de cada pedido (erro 413): manda um resumo menor e menos histórico.
+      const lite: AiRequest = {
+        context: body.context.slice(0, GROQ_CONTEXT),
+        messages: body.messages.slice(-4).map((m) => (m.role === 'assistant' ? { ...m, content: m.content.slice(0, 1200) } : m)),
+      };
+      return NextResponse.json<AiResponse>({ text: await firstOk(body.messages.some((m) => m.images?.length) ? gm.vision : gm.text, (m) => groq(qk, lite, m)), provider: 'groq' });
     }
     catch (e) { errors.push(String(e)); }
   }
   console.error('ai', errors);
-  return NextResponse.json<AiResponse>({ error: 'Os dois provedores falharam. Tente de novo em instantes.' }, { status: 502 });
+  const busy = errors.some((e) => / 503| 429| 413/.test(e));
+  return NextResponse.json<AiResponse>({ error: busy ? 'Os serviços de IA estão sobrecarregados agora. Tente de novo em 1 minuto.' : 'Os dois provedores falharam. Tente de novo em instantes.' }, { status: 502 });
 }
