@@ -30,7 +30,14 @@ export interface SquadPlayer {
   /** Moral 0–100 e seus componentes (módulo pllm). */
   morale?: number; playingTime?: number;
 }
-export interface YouthPlayer { id: number; age: number; pos: number; ovr: number; pot: number }
+export interface YouthPlayer {
+  id: number; age: number; pos: number; ovr: number; pot: number;
+  /** Campos extras (saves lidos a partir da aba Base). */
+  altPos?: number[]; wage?: number; value?: number; contractUntil?: number; nationality?: number;
+  foot?: number; skillMoves?: number; weakFoot?: number; jersey?: number;
+  /** career_youthplayers: nível do jogador (tier) e meses no time da base. */
+  tier?: number; monthsInSquad?: number;
+}
 export interface Scout { name: string; nationality: number; experience: number; knowledge: number; region: number }
 export interface SeasonRecord { teamId: number; teamName: string; league: string; objective: number; played: number; won: number; drawn: number; lost: number; goalsFor: number; goalsAgainst: number; points: number; position: number }
 export interface Match {
@@ -263,7 +270,15 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
   // Base.
   const youth: YouthPlayer[] = (t.career_youthplayers ?? []).map((y) => {
     const id = num(y, 'playerid'), p = players.get(id);
-    return { id, age: ageAt(fromGameDays(num(p, 'birthdate')), today), pos: num(p, 'preferredposition1'), ovr: num(p, 'overallrating'), pot: num(p, 'potential') };
+    const pos = num(p, 'preferredposition1');
+    const link = (t.teamplayerlinks ?? []).find((l) => num(l, 'playerid') === id);
+    return {
+      id, age: ageAt(fromGameDays(num(p, 'birthdate')), today), pos, ovr: num(p, 'overallrating'), pot: num(p, 'potential'),
+      altPos: [2, 3, 4].map((i) => num(p, `preferredposition${i}`)).filter((x) => x >= 0 && x !== pos),
+      wage: num(p, 'wage'), value: save.playerValues.get(id), contractUntil: num(p, 'contractvaliduntil'), nationality: num(p, 'nationality'),
+      foot: num(p, 'preferredfoot'), skillMoves: num(p, 'skillmoves') + 1, weakFoot: num(p, 'weakfootabilitytypecode'),
+      jersey: link ? num(link, 'jerseynumber') : undefined, tier: num(y, 'playertier'), monthsInSquad: num(y, 'monthsinsquad'),
+    };
   }).filter((y) => y.ovr > 0).sort((a, b) => b.pot - a.pot);
   const scouts: Scout[] = (t.career_scouts ?? []).map((x) => ({
     name: `${str(x, 'firstname')} ${str(x, 'lastname')}`.trim(), nationality: num(x, 'nationality'),

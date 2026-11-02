@@ -12,18 +12,18 @@ import type { Ea } from '../home/names';
  * Inspirada na organização do CM Tracker, montada com os dados do save.
  */
 type P = { s: CareerSnapshot; ea: Ea };
-type SortKey = 'age' | 'ovr' | 'pot' | 'value' | 'wage';
-const GROUPS: { line: Line; label: string }[] = [
+export type SortKey = 'age' | 'ovr' | 'pot' | 'value' | 'wage';
+export const GROUPS: { line: Line; label: string }[] = [
   { line: 'GOL', label: 'Goleiros' }, { line: 'DEF', label: 'Defensores' }, { line: 'MEI', label: 'Meio-campistas' }, { line: 'ATA', label: 'Atacantes' },
 ];
-const SORTS: { key: SortKey; label: string }[] = [
+export const SORTS: { key: SortKey; label: string }[] = [
   { key: 'age', label: 'Idade' }, { key: 'ovr', label: 'OVR' }, { key: 'pot', label: 'POT' }, { key: 'value', label: 'Valor' }, { key: 'wage', label: 'Salário' },
 ];
 const sortVal = (p: SquadPlayer, k: SortKey) => (k === 'value' ? p.value ?? 0 : p[k]);
 const monthYear = (y: number) => `jun/${y}`;
 const ROLE = ['', 'Crucial', 'Importante', 'Rodízio', 'Esporádico', 'Promessa'];
 
-function KPI({ label, value }: { label: string; value: React.ReactNode }) {
+export function KPI({ label, value }: { label: string; value: React.ReactNode }) {
   return <div><div className="text-[10px] font-semibold uppercase tracking-wider text-muted">{label}</div><div className="title text-xl">{value}</div></div>;
 }
 
