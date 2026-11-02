@@ -36,3 +36,34 @@ export function readMarketList(b: Uint8Array): MarketListing[] {
   }
   return out;
 }
+
+/**
+ * Listas de jogadores do mesmo nível do seu clube por liga (módulo `psrm`), provável.
+ * Cabeçalho fixo, depois 01 | n listas u32 (6) e cada lista: 01 | n u32 | n × (01 | playerid u32 | marca u16 | i16).
+ * Lista 0 = sua liga, listas 1 e 2 = duas ligas estrangeiras de nível parecido (Newcastle: Serie A e La Liga;
+ * Pisa: Serie B, Turquia e Segunda espanhola; América: Liga MX, MLS e outras). As listas 3–5 vêm vazias.
+ * Provável: busca de mercado/olheiros. Marca (1, −1) em parte dos jogadores, significado em aberto.
+ */
+export interface LeagueList { players: { playerId: number; mark: number; extra: number }[] }
+
+export function readLeagueLists(b: Uint8Array): LeagueList[] {
+  const out: LeagueList[] = [];
+  let o = -1;
+  for (let i = 40; i < Math.min(b.length - 5, 120); i++) if (b[i] === 1 && u32(b, i + 1) === 6 && b[i + 5] === 1) { o = i; break; }
+  if (o < 0) return out;
+  const nl = u32(b, o + 1);
+  o += 5;
+  for (let l = 0; l < nl; l++) {
+    if (b[o] !== 1) break;
+    const n = u32(b, o + 1);
+    o += 5;
+    const players: LeagueList['players'] = [];
+    for (let k = 0; k < n && o + 9 <= b.length; k++, o += 9) {
+      if (b[o] !== 1) return out;
+      const e = b[o + 7]! | (b[o + 8]! << 8);
+      players.push({ playerId: u32(b, o + 1), mark: b[o + 5]! | (b[o + 6]! << 8), extra: e > 32767 ? e - 65536 : e });
+    }
+    out.push({ players });
+  }
+  return out;
+}

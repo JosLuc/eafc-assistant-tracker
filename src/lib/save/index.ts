@@ -22,7 +22,8 @@ import { readSocial, EMAIL, type SocialPost } from './modules/social';
 import { readDynamicOvr, type DynamicOvr } from './modules/dynamicOvr';
 import { readCoaches, type Coach } from './modules/coaches';
 import { readSeasonStats, type SeasonHistory } from './modules/seasonStats';
-import { readSuggestedPlayers, readMarketList, type SuggestedPlayer, type MarketListing } from './modules/market';
+import { readJobSecurity, type ClubJobSecurity } from './modules/jobs';
+import { readSuggestedPlayers, readMarketList, readLeagueLists, type SuggestedPlayer, type MarketListing, type LeagueList } from './modules/market';
 
 export interface CareerSave {
   slotName: string;
@@ -64,10 +65,14 @@ export interface CareerSave {
   coaches: Coach[];
   /** Estatísticas da temporada passada por competição, de 3.886 jogadores (stvm). */
   seasonStats: SeasonHistory[];
+  /** Segurança no cargo do técnico de cada clube da IA (jbom). */
+  jobSecurity: ClubJobSecurity[];
   /** Provável: jogadores sugeridos/observados para o clube (pdrm). */
   suggestedPlayers: SuggestedPlayer[];
   /** Provável: lista do mercado do mundo durante a janela (plmm). */
   marketList: MarketListing[];
+  /** Provável: jogadores do mesmo nível do clube, por liga (psrm). */
+  leagueLists: LeagueList[];
   container: SaveContainer;
 }
 
@@ -121,8 +126,10 @@ export function readSave(file: Uint8Array): CareerSave {
     dynamicOvr: mod('dovm', readDynamicOvr),
     coaches: mod('coam', readCoaches),
     seasonStats: mod('stvm', readSeasonStats),
+    jobSecurity: mod('jbom', readJobSecurity),
     suggestedPlayers: mod('pdrm', readSuggestedPlayers),
     marketList: mod('plmm', readMarketList),
+    leagueLists: mod('psrm', readLeagueLists),
     playerValues: one('pvlm', readPlayerValues) ?? new Map(),
     playerForm: mod('plfm', (b) => readPlayerForm(b, new Set((tables.teamplayerlinks ?? []).filter((l) => l.teamid === club).map((l) => l.playerid as number)))),
     container,

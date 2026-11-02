@@ -36,6 +36,8 @@ Cada save tem **80 módulos** e **41 tabelas**. A coluna "Saves" diz onde o dado
 | emlm | Caixa de e-mails: aviso da diretoria, lesões, volta de lesão, base, fim de empréstimo, aposentadoria | todos | lido, sem card ainda |
 | dovm | OVR dinâmico de cada jogador do seu elenco: quanto a forma e o cansaço mudam o OVR, e a variação por atributo (forma, bônus de pré-temporada, cansaço) | todos (27 no Newcastle) | lido, sem card ainda |
 | stvm | **Estatísticas da temporada passada** de 3.886 jogadores, por competição: gols, assistências, jogos sem sofrer gol, amarelos, vermelhos, jogos, e os clubes da temporada. Conferido com Haaland (27 gols em 35 jogos na Premier League), Kane (36 na Bundesliga) e Raya (15 jogos sem sofrer gol). Provável que seja atualizado na virada da temporada | todos | lido, sem card ainda |
+| jbom | **Segurança no cargo** do técnico de cada um dos 836 clubes da IA. Começa em 80, que é o mesmo valor inicial do usuário no mhrm. No fim da temporada cai para 55 ou 40 em alguns clubes, e o América volta a 80 depois que o usuário sai. No final do módulo ficam as ofertas do mercado de técnicos com data (10/05/2027, um dia antes do Pisa), ainda sem formato fechado | todos | lido, sem card ainda |
+| psrm | **Provável**: jogadores do mesmo nível do seu clube por liga. A lista 0 é a sua liga, e as listas 1 e 2 são duas ligas estrangeiras de nível parecido (Pisa: Serie B, Turquia e Segunda espanhola). Há uma marca (1, −1) em parte dos jogadores | todos | lido como provável |
 | coam | Comissão técnica: nome, nascimento, nacionalidade, salário, função, nível (1–3) e 4 notas (1–5) dos 4 treinadores do clube, mais o mercado de treinadores (20–21) | todos | lido, sem card ainda (função e notas: prováveis) |
 | plcm | Lista 4 = papel de cada jogador do elenco (igual ao pstm). As outras 9 listas estão vazias em todos os saves; depois vem uma tabela de 152 chaves com 4 clubes cada, sem significado ainda | todos | não precisa (repete o pstm) |
 | pdrm | **Provável**: jogadores sugeridos/observados para o seu clube (estado 0–2, categoria, nota, data em que entrou). No início do América: agentes livres e jogadores da Liga MX; no Newcastle: OVR 72–83 | todos | lido como provável |
@@ -47,8 +49,6 @@ Para fechar estes, preciso comparar com a tela do jogo (print) ou com um save ti
 
 | Módulo | O que já sei | Onde muda |
 |---|---|---|
-| psrm | 6 listas de jogadores da mesma liga do clube (49, 40…), cada um com uma marca de tamanho variável (0 ou 1 + valor). Provável busca de olheiros / jogadores recomendados | cresce na temporada |
-| jbom | 836 clubes, registros de 24 B (teamid, nota 41–90, 14 vagas vazias); no fim da temporada aparecem ofertas de emprego para técnicos. Provável mercado de técnicos | fim da temporada |
 | intm | Modo seleção do técnico. Como você não treina seleção, quase tudo vem vazio (ff): só os nomes das competições internacionais (C1991, C2136, amistosos). Igual entre os saves do Newcastle | só se treinar uma seleção |
 | tskm, mssm, inrm, phmg, uevm, accm, tmvm, crsm | Tarefas, mensagens, eventos inesperados, conquistas | pequenos |
 | plgm | Crescimento de todos os 21.946 jogadores do mundo | sempre |

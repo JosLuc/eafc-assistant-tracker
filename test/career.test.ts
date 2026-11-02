@@ -128,8 +128,14 @@ describe.skipIf(!existsSync(join(DIR, 's6.sav')))('várias carreiras', () => {
     expect(s6.squad.find((p) => p.id === 266127)).toMatchObject({ ovrForm: 4, ovrFatigue: -3 });
     expect(s5.squad.find((p) => p.id === 266127)).toMatchObject({ ovrForm: 4, ovrFatigue: 0 });
     // Temporada passada por competição (stvm)
-    const sb = readSave(new Uint8Array(readFileSync('saves/b.sav'))).seasonStats;
+    const rawB = readSave(new Uint8Array(readFileSync('saves/b.sav'))), sb = rawB.seasonStats;
     expect(sb).toHaveLength(3886);
+    // Segurança no cargo dos técnicos da IA (jbom): 836 clubes; o América, que o usuário deixou, volta a 80
+    expect(rawB.jobSecurity).toHaveLength(836);
+    expect(rawB.jobSecurity.find((x) => x.teamId === 1879)?.security).toBe(80);
+    expect(rawB.jobSecurity.some((x) => x.security === 40)).toBe(true);
+    // Listas por liga (psrm): Pisa com 86, 40 e 123 jogadores
+    expect(rawB.leagueLists.map((l) => l.players.length)).toEqual([86, 40, 123, 0, 0, 0]);
     expect(sb.find((x) => x.playerId === 239085)?.comps[0]).toMatchObject({ competitionId: 818, goals: 27, assists: 8, apps: 35 });
     expect(sb.find((x) => x.playerId === 230621)?.comps[0]).toMatchObject({ competitionId: 818, cleanSheets: 15, apps: 34 });
     // Comissão técnica (coam): 4 treinadores do clube + mercado de treinadores
