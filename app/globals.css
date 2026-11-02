@@ -1,19 +1,25 @@
 @import 'tailwindcss';
 
-/* Tema inspirado no CM Tracker: fundo quase preto, cartões escuros, destaque azul e selos de OVR verdes. */
+/* Tema no estilo do CM Tracker: fundo #111, tiles #1e1e1e com cantos de 10px, um acento azul e escala de rating verde→vermelho. */
 @theme {
-  --color-bg: #0f0f10;
-  --color-card: #1a1a1c;
-  --color-card-2: #222225;
-  --color-line: #2c2c30;
-  --color-muted: #8b8b93;
-  --color-accent: #5b6cff;
-  --color-good: #22c55e;
-  --color-mid: #eab308;
-  --color-bad: #ef4444;
-  --font-display: 'Barlow Condensed', ui-sans-serif, system-ui, sans-serif;
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --color-bg: #111111;
+  --color-card: #1e1e1e;
+  --color-card-2: #2a2a2a;
+  --color-line: #2a2a2a;
+  --color-muted: #a3a3a3;
+  --color-faint: #8a8a8a;
+  --color-accent: #5865f2;
+  --color-link: #9aa2ff;
+  --color-good: #12eb83;
+  --color-mid: #ffb020;
+  --color-bad: #ff6460;
+  --font-display: 'Tektur', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Ubuntu Sans', ui-sans-serif, system-ui, sans-serif;
 }
 
-html, body { background: var(--color-bg); color: #ececf1; }
-.title { font-family: var(--font-display); text-transform: uppercase; letter-spacing: .03em; font-weight: 700; }
+html { scroll-behavior: smooth; }
+html, body { background: var(--color-bg); color: #f0f0f0; }
+body { font-size: 14px; line-height: 1.45; }
+.title { font-family: var(--font-display); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+.label { font-family: var(--font-display); text-transform: uppercase; letter-spacing: .1em; font-weight: 700; font-size: 11px; color: var(--color-faint); }
+.num { font-family: var(--font-display); font-variant-numeric: tabular-nums; }

@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
  * Card da Home. Todos têm a mesma altura (como no CM Tracker); o que não cabe fica em "Ver tudo",
@@ -15,9 +15,9 @@ export function Card({ title, help, wave, empty, className = '', action, childre
   const [tip, setTip] = useState(false);
   const [open, setOpen] = useState(false);
   return (
-    <section className={`relative flex flex-col rounded-lg border border-line bg-card p-4 ${wide ? 'min-h-[220px]' : 'h-[460px]'} ${empty ? 'border-dashed' : ''} ${className}`}>
+    <section className={`relative flex h-full flex-col rounded-[10px] px-[18px] pb-[18px] pt-4 ${wide ? 'min-h-[220px]' : 'min-h-[460px] max-h-[560px]'} ${empty ? 'border border-dashed border-[#3a3a3a] bg-transparent' : 'bg-card'} ${className}`}>
       <header className="mb-3 flex shrink-0 items-center gap-2">
-        <h3 className="title text-[15px]">{title}</h3>
+        <h3 className="title text-[15px] tracking-[.06em]">{title}</h3>
         {help && (
           <button aria-label="Ajuda" onMouseEnter={() => setTip(true)} onMouseLeave={() => setTip(false)} onClick={() => setTip((v) => !v)}
             className="grid h-4 w-4 place-items-center rounded-full border border-muted text-[10px] text-muted">i</button>
@@ -39,7 +39,7 @@ export function Card({ title, help, wave, empty, className = '', action, childre
         ) : children}
       </div>
       {more && !empty && (
-        <button onClick={() => setOpen(true)} className="mt-3 self-start rounded border border-line px-2.5 py-1 text-xs font-semibold text-accent hover:bg-card-2">VER TUDO ›</button>
+        <button onClick={() => setOpen(true)} className="title mt-3 self-start rounded-md border border-line px-3 py-1.5 text-[12px] text-link hover:bg-[#232323]">Ver tudo ›</button>
       )}
       {open && <Modal title={title} onClose={() => setOpen(false)}>{typeof more === 'function' ? more() : more}</Modal>}
     </section>
@@ -47,6 +47,11 @@ export function Card({ title, help, wave, empty, className = '', action, childre
 }
 
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', on);
+    return () => window.removeEventListener('keydown', on);
+  }, [onClose]);
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/60" onClick={onClose}>
       <div className="h-full w-full max-w-4xl overflow-y-auto border-l border-line bg-card p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -89,9 +94,11 @@ export function Tabs<T extends string>({ value, options, onChange }: { value: T;
   );
 }
 
+/** Escala de cor do rating: verde forte 80+, verde 75+, amarelo 70+, âmbar 61+, laranja 50+, vermelho abaixo. */
+export const ratingColor = (v: number) => (v >= 80 ? '#12eb83' : v >= 75 ? '#14b341' : v >= 70 ? '#ffd200' : v >= 61 ? '#ffb020' : v >= 50 ? '#ff860a' : '#ff6460');
+
 export function Ovr({ v, size = 'sm' }: { v: number; size?: 'sm' | 'lg' }) {
-  const color = v >= 75 ? 'bg-good text-black' : v >= 65 ? 'bg-mid text-black' : 'bg-[#4b4b52] text-white';
-  return <span className={`inline-grid place-items-center rounded font-bold tabular-nums ${color} ${size === 'lg' ? 'h-9 min-w-11 px-2 text-xl' : 'h-5 min-w-7 px-1 text-xs'}`}>{v}</span>;
+  return <span style={{ background: ratingColor(v) }} className={`num inline-grid place-items-center rounded-[5px] font-bold text-[#0b0b0b] ${size === 'lg' ? 'h-9 min-w-11 px-2 text-xl' : 'h-6 min-w-8 px-1 text-[13px]'}`}>{v}</span>;
 }
 
 export function Stat({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {

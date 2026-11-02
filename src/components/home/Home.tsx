@@ -4,15 +4,13 @@ import type { CareerSnapshot } from '@/lib/career/snapshot';
 import { addSnapshot, loadSnapshots, parseInWorker, removeCareer } from '@/lib/client/store';
 import { careerKey, groupCareers, type Career } from '@/lib/career/merge';
 import { useEa } from './names';
-import { Header } from './Header';
+import { Header, type Page } from './Header';
 import { Upload } from './Upload';
 import * as W from './widgets';
 import * as W2 from './widgets2';
 import { SquadPage } from '../squad/SquadPage';
 import { YouthPage } from '../squad/YouthPage';
 
-const PAGES = [{ id: 'inicio', label: 'Início' }, { id: 'elenco', label: 'Elenco' }, { id: 'base', label: 'Base' }] as const;
-type Page = (typeof PAGES)[number]['id'];
 
 const SECTIONS = [
   { id: 'geral', label: 'Visão geral' },
@@ -114,33 +112,38 @@ export function Home() {
   if (!snaps) return <p className="p-8 text-muted">Carregando…</p>;
   if (!s || uploading) return <main className="p-4 pt-16"><Upload onFile={onFile} busy={busy} error={error} onCancel={s ? () => setUploading(false) : undefined} /></main>;
 
-  const visible = WIDGETS.filter((w) => w.sections.includes(section));
   return (
-    <main className="mx-auto max-w-7xl space-y-4 p-4">
-      <Header s={s} ea={ea} onUpload={() => setUploading(true)} careers={careers} current={career!} onChoose={choose}
+    <main className="mx-auto max-w-[1280px] space-y-6 px-4 pb-14 pt-4 md:px-6">
+      <Header s={s} ea={ea} onUpload={() => setUploading(true)} careers={careers} current={career!} onChoose={choose} page={page} setPage={setPage}
         onRemove={async (k) => { if (confirm('Apagar esta carreira e todos os saves dela deste navegador?')) setSnaps(await removeCareer(careerKey, k)); }} />
-      <nav className="flex gap-2">
-        {PAGES.map((x) => (
-          <button key={x.id} onClick={() => setPage(x.id)}
-            className={`title rounded-lg px-4 py-2 text-sm ${page === x.id ? 'bg-accent text-white' : 'bg-card text-muted hover:text-white'}`}>{x.label}</button>
-        ))}
-      </nav>
-      {page === 'elenco' ? <SquadPage s={s} ea={ea} /> : page === 'base' ? <YouthPage s={s} ea={ea} /> : <>
-      <nav className="flex gap-1 overflow-x-auto border-b border-line">
-        {SECTIONS.map((x) => {
-          const n = WIDGETS.filter((w) => w.sections.includes(x.id)).length;
-          return (
-            <button key={x.id} onClick={() => setSection(x.id)}
-              className={`title whitespace-nowrap border-b-2 px-3 py-2 text-sm ${section === x.id ? 'border-accent text-white' : 'border-transparent text-muted hover:text-white'}`}>
-              {x.label} <span className="text-xs text-muted">{n}</span>
-            </button>
-          );
-        })}
-      </nav>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {visible.map(({ id, C, wide }) => <div key={id} className={wide ? 'md:col-span-2 xl:col-span-3' : ''}><C s={s} ea={ea} career={career!} /></div>)}
-      </div>
-      </>}
+      {page === 'elenco' ? <SquadPage s={s} ea={ea} /> : page === 'base' ? <YouthPage s={s} ea={ea} /> : (
+        <div>
+          <div className="flex items-baseline justify-between"><h2 className="title text-[15px]">Visão do clube</h2><span className="text-xs text-muted">Do save enviado · temporada {s.season}</span></div>
+          <nav className="sticky top-0 z-30 -mx-4 mb-2 flex gap-5 overflow-x-auto border-b border-line bg-bg/95 px-4 backdrop-blur md:-mx-6 md:px-6">
+            {SECTIONS.map((x) => {
+              const n = WIDGETS.filter((w) => w.sections[0] === x.id).length;
+              return (
+                <a key={x.id} href={`#${x.id}`} onClick={() => setSection(x.id)}
+                  className={`title whitespace-nowrap border-b-2 py-3 text-[13px] ${section === x.id ? 'border-accent text-white' : 'border-transparent text-muted hover:text-white'}`}>
+                  {x.label} <span className="ml-1 text-[11px] font-normal text-faint">{n}</span>
+                </a>
+              );
+            })}
+          </nav>
+          {SECTIONS.map((x) => {
+            const list = WIDGETS.filter((w) => w.sections[0] === x.id);
+            if (!list.length) return null;
+            return (
+              <section key={x.id} id={x.id} className="scroll-mt-14 pt-6">
+                <div className="mb-3 flex items-baseline justify-between"><h2 className="title text-[15px]">{x.label}</h2><span className="text-xs text-faint">{list.length} cards</span></div>
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-12">
+                  {list.map(({ id, C, wide }) => <div key={id} className={wide ? 'md:col-span-2 xl:col-span-12' : 'xl:col-span-4'}><C s={s} ea={ea} career={career!} /></div>)}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      )}
     </main>
   );
 }
