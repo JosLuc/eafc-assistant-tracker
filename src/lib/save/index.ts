@@ -4,6 +4,7 @@ import { calibrate } from './calibrate';
 import { readStandings, type StandingRow } from './modules/standings';
 import { readLineups, type TeamLineup } from './modules/lineups';
 import { readFixtures, type RawFixture } from './modules/fixtures';
+import { readCompetitions, type Competition } from './modules/competitions';
 import { readFitness, type Fitness } from './modules/fitness';
 import { readCards, type CardRecord } from './modules/cards';
 import { readTransfers, readTransferHistory, type TransferRecord } from './modules/transfers';
@@ -33,6 +34,8 @@ export interface CareerSave {
   standings: Map<number, StandingRow[]>;
   lineups: TeamLineup[];
   fixtures: RawFixture[];
+  /** Registro de competições (id → asset do troféu e país). */
+  competitions: Map<number, Competition>;
   fitness: Fitness[];
   cards: CardRecord[];
   transfers: TransferRecord[];
@@ -108,6 +111,7 @@ export function readSave(file: Uint8Array): CareerSave {
     standings: fcem ? readStandings(fcem, (id) => teamIds.has(id)) : new Map(),
     lineups: hstm ? readLineups(hstm) : [],
     fixtures: fcem ? readFixtures(fcem) : [],
+    competitions: (() => { try { return fcem ? readCompetitions(fcem) : new Map(); } catch { return new Map(); } })(),
     fitness: mod('fitm', readFitness),
     cards: mod('susm', readCards),
     transfers: mod('trfm', (b) => { const a = readTransfers(b), h = readTransferHistory(b); return [...a, ...h.filter((x) => !a.some((y) => y.playerId === x.playerId && y.toTeam === x.toTeam))]; }),

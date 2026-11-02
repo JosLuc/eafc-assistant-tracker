@@ -1,3 +1,4 @@
+import { SUPER_CUPS, competitionInfo } from './competitions';
 import type { CareerSave, Row } from '../save';
 import { moduleBytes } from '../save/container';
 import { u32 } from '../save/bytes';
@@ -68,6 +69,8 @@ export interface CareerSnapshot {
   };
   manager: {
     name: string; joined: number; wage?: number; earnings?: number; jobSecurity?: number;
+    /** Início da carreira do técnico (aaaammdd, mhrm). */
+    careerStart?: number;
     history?: SeasonRecord[];
     biggestWin?: { score: string; opponent: string; date: number };
     /** Prêmios do técnico (ex.: técnico do mês). */
@@ -112,6 +115,8 @@ export interface CareerSnapshot {
   /** Clubes da sua liga: orçamento de transferências (inicial e atual), orçamento salarial e segurança no cargo do técnico. */
   /** Nome das competições que aparecem na temporada passada do elenco (liga do clube mais comum entre os jogadores). */
   lastSeasonComps: Record<number, string>;
+  /** Copas da temporada: as que o clube já tem jogos e as copas nacionais do país da liga (para "sem jogo marcado ainda"). */
+  cups?: { id: number; name: string; kind: 'cup' | 'continental' }[];
   leagueRivals: { teamId: number; name: string; initial: number; current: number; wage: number; security: number | null }[];
   /** Times da semana publicados no feed. */
   teamOfWeek: { date: number | null; players: number[] }[];
@@ -183,11 +188,30 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
   const compStage = new Map<number, number>();
   for (const f of clubFixtures) { const st = rowStage.get(f.homeRow); if (st != null && !compStage.has(f.competitionId)) compStage.set(f.competitionId, st); }
   const leagueStage = mainComp != null ? compStage.get(mainComp) : undefined;
+  const lgName = (id: number) => { const r = (t.leagues ?? []).find((x) => num(x, 'leagueid') === id); return r ? cleanLeague(str(r, 'leaguename')) : undefined; };
+  const regName = (compId: number) => (save.competitions?.has(compId) ? competitionInfo(compId, save.competitions, lgName).name : undefined);
+  const stageComp = new Map([...compStage].map(([c, st]) => [st, c]));
   const stageTitle = (stageId: number, rows: { teamId: number }[]) => {
     const isLeague = leagueStage != null ? stageId === leagueStage
       : rows.length === leagueTeams.size && rows.every((r) => leagueTeams.has(r.teamId));
-    return { isLeague, title: isLeague ? cleanLeague(str(league, 'leaguename')) : rows.length <= 8 ? 'Torneio de pré-temporada' : `Competição ${stageId}` };
+    const comp = stageComp.get(stageId);
+    return { isLeague, title: isLeague ? cleanLeague(str(league, 'leaguename')) : (comp != null && regName(comp)) || (rows.length <= 8 ? 'Torneio de pré-temporada' : `Competição ${stageId}`) };
   };
+
+  // Copas do clube nesta temporada.
+  const cups: NonNullable<CareerSnapshot['cups']> = [];
+  {
+    const reg = save.competitions ?? new Map();
+    const nation = mainComp != null ? reg.get(mainComp)?.parent : undefined;
+    const ids = new Set<number>(clubFixtures.map((f) => f.competitionId));
+    for (const c of reg.values()) if (nation != null && c.parent === nation && !SUPER_CUPS.has(c.asset)) ids.add(c.id);
+    for (const id of ids) {
+      if (!reg.has(id)) continue;
+      const info = competitionInfo(id, reg, lgName);
+      if ((info.kind === 'cup' || info.kind === 'continental') && !info.name.includes('(')) cups.push({ id, name: info.name, kind: info.kind });
+      else if ((info.kind === 'cup' || info.kind === 'continental') && clubFixtures.some((f) => f.competitionId === id)) cups.push({ id, name: info.name, kind: info.kind });
+    }
+  }
 
   const standings: Standing[] = [];
   for (const [stageId, rows] of save.standings) {
@@ -203,7 +227,8 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
 
   const compTitle = (compId: number) => {
     const st = compStage.get(compId);
-    return st != null ? stageTitle(st, save.standings.get(st) ?? []).title : `Competição ${compId}`;
+    if (st != null && st === leagueStage) return stageTitle(st, save.standings.get(st) ?? []).title;
+    return regName(compId) ?? (st != null ? stageTitle(st, save.standings.get(st) ?? []).title : `Competição ${compId}`);
   };
   const matches: Match[] = clubFixtures
     .map((f) => {
@@ -340,7 +365,7 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
     manager: mgr ? {
       name: str(mgr, 'commonname') || `${str(mgr, 'firstname')} ${str(mgr, 'surname')}`.trim(),
       joined: mh && mh.joined > 20100101 ? mh.joined : toYmd(fromGameDays(num(mgr, 'managerjointeamdate'))),
-      wage: mh?.wage, earnings: mh?.earnings, jobSecurity: mh?.seasons.at(-1)?.jobSecurity,
+      wage: mh?.wage, earnings: mh?.earnings, careerStart: mh?.careerStart, jobSecurity: mh?.seasons.at(-1)?.jobSecurity,
       history: mh?.seasons.map((x) => ({ ...x, teamName: teamName(x.teamId), league: leagueName(x.leagueId) })),
       biggestWin, worstStreak,
       awards: (t.career_managerawards ?? []).map((r) => ({ date: toYmd(fromGameDays(num(r, 'receiveddate'))), season: num(r, 'season'), teamId: num(r, 'teamid'), teamName: teamName(num(r, 'teamid')), type: num(r, 'typeid'), count: num(r, 'count') })),
@@ -363,6 +388,7 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
     news: save.social.filter((x) => !x.key.startsWith('CM_SM_')).map(withTeams),
     emails: save.emails.map(withTeams),
     lastSeasonComps: lastSeasonComps(save, squad, leagueName),
+    cups,
     leagueRivals: save.budgets.filter((x) => leagueTeams.has(x.teamId) && x.teamId !== clubId).map((x) => ({
       teamId: x.teamId, name: teamName(x.teamId), initial: x.initial, current: x.current, wage: x.wageBudget,
       security: save.jobSecurity.find((j) => j.teamId === x.teamId)?.security ?? null,
@@ -393,6 +419,8 @@ function lastSeasonComps(save: CareerSave, squad: SquadPlayer[], leagueName: (id
     m.set(lg, (m.get(lg) ?? 0) + 1); votes.set(c.competitionId, m);
   }
   const out: Record<number, string> = { 135: 'Champions League' };
+  const lgName = (id: number) => { const r = (save.tables.leagues ?? []).find((x) => num(x, 'leagueid') === id); return r ? leagueName(id) : undefined; };
+  for (const id of want) if (save.competitions?.has(id)) { const n = competitionInfo(id, save.competitions, lgName).name; if (!n.includes('(')) out[id] = n; }
   for (const [comp, m] of votes) {
     if (out[comp]) continue;
     const total = [...m.values()].reduce((a, b) => a + b, 0);
