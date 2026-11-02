@@ -11,6 +11,7 @@ export const PAGES = [
   { id: 'elenco', label: 'Elenco', icon: '☷' },
   { id: 'base', label: 'Base', icon: '✪' },
   { id: 'trofeus', label: 'Troféus', icon: '🏆' },
+  { id: 'scout', label: 'Scout', icon: '⌖' },
 ] as const;
 export type Page = (typeof PAGES)[number]['id'];
 
@@ -49,7 +50,8 @@ export function Header({ s, ea, onUpload, careers, current, onChoose, onRemove, 
   }, [page, setPage]);
 
   return (
-    <div className="rounded-[10px] bg-card">
+    <>
+    <div className="rounded-t-[10px] bg-card">
       <div className="flex flex-wrap items-center gap-2 border-b border-line px-5 py-3 text-xs">
         <span className="text-muted">Carreira</span>
         <select value={current.key} onChange={(e) => onChoose(e.target.value)} className="rounded-md border border-line bg-[#232323] px-2 py-1">
@@ -77,17 +79,19 @@ export function Header({ s, ea, onUpload, careers, current, onChoose, onRemove, 
             <div className="num text-lg font-bold">{r.gf}:{r.ga} {gd !== 0 && <span className={`text-xs ${gd > 0 ? 'text-good' : 'text-bad'}`}>{gd > 0 ? '+' : ''}{gd}</span>}</div></div>
         </div>
       </div>
-      <nav className="flex items-center gap-1 overflow-x-auto border-t border-line px-3">
+      {!ea.available && <p className="border-t border-line px-5 py-2 text-[11px] text-muted">Nomes e fotos indisponíveis agora (API da EA fora do ar). Último save “{s.slotName}”, enviado em {new Date(s.importedAt).toLocaleString('pt-BR')}.</p>}
+    </div>
+    {/* Abas fixas no topo ao rolar (como no CM Tracker). */}
+    <nav id="tabs" className="sticky top-0 z-40 !mt-0 flex h-12 items-center gap-1 overflow-x-auto rounded-b-[10px] border-t border-line bg-card px-3 shadow-[0_8px_16px_-12px_rgba(0,0,0,.8)]">
         <kbd className="mr-1 rounded border border-line px-1.5 text-[10px] text-muted" title="Aba anterior">Q</kbd>
         {PAGES.map((x) => (
           <button key={x.id} onClick={() => setPage(x.id)}
-            className={`flex items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-3 text-[13px] font-medium uppercase tracking-[.06em] ${page === x.id ? 'border-accent text-white' : 'border-transparent text-muted hover:text-white'}`}>
+            className={`flex items-center gap-1.5 h-full whitespace-nowrap border-b-2 px-3 text-[13px] font-medium uppercase tracking-[.06em] ${page === x.id ? 'border-accent text-white' : 'border-transparent text-muted hover:text-white'}`}>
             <span className="text-[15px]">{x.icon}</span>{x.label}
           </button>
         ))}
         <kbd className="ml-auto rounded border border-line px-1.5 text-[10px] text-muted" title="Próxima aba">E</kbd>
       </nav>
-      {!ea.available && <p className="border-t border-line px-5 py-2 text-[11px] text-muted">Nomes e fotos indisponíveis agora (API da EA fora do ar). Último save “{s.slotName}”, enviado em {new Date(s.importedAt).toLocaleString('pt-BR')}.</p>}
-    </div>
+    </>
   );
 }

@@ -43,6 +43,8 @@ export async function POST(req: Request) {
 /** Diagnóstico pelo navegador: /api/ea?ids=158023,231747&teams=13 */
 export async function GET(req: Request) {
   const q = new URL(req.url).searchParams;
+  // Busca por nome (Scout): /api/ea?q=bruno → { ids } de quem tem o nome parecido.
+  if (q.get('q')) return search(q.get('q')!);
   const list = (k: string) => (q.get(k) ?? '').split(',').map(Number).filter(Boolean);
   return lookup(list('ids'), list('teams'));
 }
@@ -63,5 +65,23 @@ async function lookup(ids: number[], teamIds: number[]) {
   } catch (e) {
     console.error('Falha ao ler a API da EA:', e);
     return NextResponse.json({ players: {}, crests: {}, available: false } satisfies EaLookup);
+  }
+}
+
+const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+async function search(text: string) {
+  try {
+    index ??= loadIndex().catch((e) => { index = null; throw e; });
+    const map = await index;
+    const words = norm(text).split(/\s+/).filter(Boolean).slice(0, 4);
+    const ids: number[] = [];
+    for (const it of map.values()) {
+      const n = norm(`${it.firstName} ${it.lastName} ${it.commonName ?? ''}`);
+      if (words.every((w) => n.includes(w))) ids.push(it.id);
+      if (ids.length >= 1000) break;
+    }
+    return NextResponse.json({ ids, available: true });
+  } catch {
+    return NextResponse.json({ ids: [], available: false });
   }
 }

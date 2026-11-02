@@ -1,12 +1,16 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useContext } from 'react';
+import { Drawer, DrawerRegistry, useHub } from '../drawer/kit';
+import type { Ea } from './names';
+import { WHEN } from './help';
 
 /**
  * Card da Home. Todos têm a mesma altura (como no CM Tracker); o que não cabe fica em "Ver tudo",
  * que abre uma janela com a lista completa.
  */
-export function Card({ title, help, wave, empty, className = '', action, children, more, wide }: {
-  title: string; help?: string; wave?: number; empty?: string; className?: string; action?: React.ReactNode; children?: React.ReactNode;
+export function Card({ title, help, wave, empty, className = '', action, children, more, wide, drawerTitle }: {
+  title: string; drawerTitle?: string; help?: string; wave?: number; empty?: string; className?: string; action?: React.ReactNode; children?: React.ReactNode;
   /** Conteúdo completo mostrado na janela "Ver tudo". */
   more?: React.ReactNode | (() => React.ReactNode);
   /** Cards largos (linha inteira) crescem com o conteúdo. */
@@ -14,6 +18,8 @@ export function Card({ title, help, wave, empty, className = '', action, childre
 }) {
   const [tip, setTip] = useState(false);
   const [open, setOpen] = useState(false);
+  const reg = useContext(DrawerRegistry)[title];
+  if (reg) { more = reg.render; drawerTitle = reg.title; }
   return (
     <section className={`relative flex h-full flex-col rounded-[10px] px-[18px] pb-[18px] pt-4 ${wide ? 'min-h-[220px]' : 'min-h-[460px] max-h-[560px]'} ${empty ? 'border border-dashed border-[#3a3a3a] bg-transparent' : 'bg-card'} ${className}`}>
       <header className="mb-3 flex shrink-0 items-center gap-2">
@@ -24,7 +30,10 @@ export function Card({ title, help, wave, empty, className = '', action, childre
         )}
         <div className="ml-auto">{action}</div>
         {tip && help && (
-          <div className="absolute left-4 top-10 z-20 max-w-72 rounded-md border border-line bg-card-2 p-3 text-xs text-[#cfcfd6] shadow-xl">{help}</div>
+          <div role="tooltip" className="absolute left-4 top-10 z-20 w-80 max-w-[calc(100%-2rem)] space-y-2.5 rounded-lg border border-line bg-[#181818] p-3.5 text-xs leading-relaxed text-[#cfcfd6] shadow-2xl">
+            <div><div className="label mb-0.5 !text-[10px] text-white">O que mostra</div>{help}</div>
+            {WHEN[title] && <div><div className="label mb-0.5 !text-[10px] text-white">Quando tem dado</div>{WHEN[title]}</div>}
+          </div>
         )}
       </header>
       <div className={`min-h-0 flex-1 ${wide ? '' : 'overflow-hidden'}`}>
@@ -41,7 +50,7 @@ export function Card({ title, help, wave, empty, className = '', action, childre
       {more && !empty && (
         <button onClick={() => setOpen(true)} className="title mt-3 self-start rounded-md border border-line px-3 py-1.5 text-[12px] text-link hover:bg-[#232323]">Ver tudo ›</button>
       )}
-      {open && <Modal title={title} onClose={() => setOpen(false)}>{typeof more === 'function' ? more() : more}</Modal>}
+      {open && <Drawer title={drawerTitle ?? title} onClose={() => setOpen(false)}>{typeof more === 'function' ? more() : more}</Drawer>}
     </section>
   );
 }
@@ -137,3 +146,14 @@ export function Pic({ src, name, size = 28, round = true }: { src?: string; name
 }
 
 export const timeBr = (hhmm: number) => `${String(Math.floor(hhmm / 100)).padStart(2, '0')}:${String(hhmm % 100).padStart(2, '0')}`;
+
+/** Nome do jogador que abre a página dele ao clicar (em qualquer card, tabela ou campinho). */
+export function PN({ id, ea }: { id: number; ea: Ea }) {
+  const { openPlayer } = useHub();
+  if (!openPlayer || !(id > 0)) return <>{ea.player(id).short}</>;
+  return (
+    <span role="link" tabIndex={0} className="cursor-pointer hover:text-link hover:underline"
+      onClick={(e) => { e.stopPropagation(); openPlayer(id); }}
+      onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); openPlayer(id); } }}>{ea.player(id).short}</span>
+  );
+}

@@ -1,7 +1,7 @@
 'use client';
 import type { CareerSnapshot, SquadPlayer } from '@/lib/career/snapshot';
 import { posLabel } from '@/lib/career/positions';
-import { Card, Ovr, Pic, Stat, Table, dateBr, money } from './ui';
+import { Card, Ovr, Pic, Stat, Table, dateBr, money, PN } from './ui';
 import type { Career } from '@/lib/career/merge';
 import type { Ea } from './names';
 
@@ -16,7 +16,7 @@ function Crest({ id, name, ea, size = 16 }: { id: number; name: string; ea: Ea; 
   return <Pic src={ea.crest(id)} name={name} size={size} round={false} />;
 }
 function Name({ id, ea, sub }: { id: number; ea: Ea; sub?: React.ReactNode }) {
-  return <span className="flex items-center gap-2"><Face id={id} ea={ea} size={22} /><span><span className="block">{ea.player(id).short}</span>{sub && <span className="block text-[11px] text-muted">{sub}</span>}</span></span>;
+  return <span className="flex items-center gap-2"><Face id={id} ea={ea} size={22} /><span><span className="block"><PN id={id} ea={ea} /></span>{sub && <span className="block text-[11px] text-muted">{sub}</span>}</span></span>;
 }
 const signed = (n: number | undefined) => (n == null ? '—' : n > 0 ? `+${n}` : String(n));
 const deltaColor = (n: number | undefined) => (n == null || n === 0 ? 'text-muted' : n > 0 ? 'text-good' : 'text-bad');
@@ -33,7 +33,7 @@ export function SquadForm({ s, ea }: P) {
   const best = [...list].sort((a, b) => b.formScore! - a.formScore!).slice(0, 3);
   const tired = s.squad.filter((p) => (p.ovrFatigue ?? 0) < 0).sort((a, b) => a.ovrFatigue! - b.ovrFatigue!).slice(0, 3);
   const line = (p: SquadPlayer, right: React.ReactNode) => (
-    <li key={p.id} className="flex items-center gap-2 py-1 text-sm"><Face id={p.id} ea={ea} /><span className="truncate">{ea.player(p.id).short}</span><span className="text-xs text-muted">{posLabel(p.pos)}</span><span className="ml-auto flex items-center gap-2">{right}</span></li>
+    <li key={p.id} className="flex items-center gap-2 py-1 text-sm"><Face id={p.id} ea={ea} /><span className="truncate"><PN id={p.id} ea={ea} /></span><span className="text-xs text-muted">{posLabel(p.pos)}</span><span className="ml-auto flex items-center gap-2">{right}</span></li>
   );
   return (
     <Card title="Forma e cansaço" help={help}
@@ -66,7 +66,7 @@ export function SquadValue({ s, ea }: P) {
       <Stat label="Média por jogador" value={money(Math.round(total / list.length))} />
       <Section>Mais valiosos</Section>
       <ul>{list.slice(0, 5).map((p) => (
-        <li key={p.id} className="flex items-center gap-2 py-1 text-sm"><Face id={p.id} ea={ea} /><span className="truncate">{ea.player(p.id).short}</span><span className="text-xs text-muted">{p.age} anos</span><span className="ml-auto font-semibold tabular-nums">{money(p.value!)}</span></li>
+        <li key={p.id} className="flex items-center gap-2 py-1 text-sm"><Face id={p.id} ea={ea} /><span className="truncate"><PN id={p.id} ea={ea} /></span><span className="text-xs text-muted">{p.age} anos</span><span className="ml-auto font-semibold tabular-nums">{money(p.value!)}</span></li>
       ))}</ul>
     </Card>
   );
@@ -90,7 +90,7 @@ export function LastSeason({ s, ea }: P) {
       <div className="mb-1 grid grid-cols-[1fr_auto_auto_auto] gap-x-3 text-[11px] font-semibold uppercase text-muted"><span>Jogador</span><span>J</span><span>G</span><span>A</span></div>
       <ul>{top.map(({ p, apps, goals, assists }) => (
         <li key={p.id} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 py-1 text-sm">
-          <span className="flex min-w-0 items-center gap-2"><Face id={p.id} ea={ea} /><span className="truncate">{ea.player(p.id).short}</span></span>
+          <span className="flex min-w-0 items-center gap-2"><Face id={p.id} ea={ea} /><span className="truncate"><PN id={p.id} ea={ea} /></span></span>
           <span className="tabular-nums text-muted">{apps}</span><span className="font-semibold tabular-nums">{goals}</span><span className="tabular-nums">{assists}</span>
         </li>
       ))}</ul>
@@ -162,7 +162,7 @@ function PostItem({ x, ea, dict }: { x: Post; ea: Ea; dict: [RegExp, string][] }
       <div className="flex items-center justify-between gap-2"><span className="truncate font-semibold">{label(x.key, dict)}</span><span className="shrink-0 text-[11px] text-muted">{x.date ? dateBr(x.date) : ''}</span></div>
       {(pl.length > 0 || teams.length > 0) && (
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted">
-          {pl.map((id) => <span key={`p${id}`} className="flex items-center gap-1"><Face id={id} ea={ea} size={14} />{ea.player(id).short}</span>)}
+          {pl.map((id) => <span key={`p${id}`} className="flex items-center gap-1"><Face id={id} ea={ea} size={14} /><PN id={id} ea={ea} /></span>)}
           {teams.map((t) => <span key={`t${t.id}`} className="flex items-center gap-1"><Crest id={t.id} name={t.name} ea={ea} size={12} />{t.name}</span>)}
         </div>
       )}
@@ -209,16 +209,16 @@ export function LeagueAwards({ s, ea }: P) {
   return (
     <Card title="Time da semana e jogador do mês" help={help}
       more={() => <div className="space-y-4">
-        {potm.length > 0 && <div><div className="mb-1 font-semibold">Jogador do mês</div><ul>{potm.map((x, i) => <li key={i} className="flex items-center gap-2 py-1 text-sm"><Face id={x.playerId} ea={ea} />{ea.player(x.playerId).short}<span className="text-xs text-muted">{x.teamName}</span><span className="ml-auto text-xs text-muted">{x.date ? dateBr(x.date) : ''}</span></li>)}</ul></div>}
-        {totw.map((t, i) => <div key={i}><div className="mb-1 font-semibold">Time da semana · {t.date ? dateBr(t.date) : ''}</div><ul className="grid grid-cols-2 gap-1 text-sm">{t.players.map((id) => <li key={id} className={`flex items-center gap-1 ${mine.has(id) ? 'font-semibold text-accent' : ''}`}><Face id={id} ea={ea} size={18} />{ea.player(id).short}</li>)}</ul></div>)}
+        {potm.length > 0 && <div><div className="mb-1 font-semibold">Jogador do mês</div><ul>{potm.map((x, i) => <li key={i} className="flex items-center gap-2 py-1 text-sm"><Face id={x.playerId} ea={ea} /><PN id={x.playerId} ea={ea} /><span className="text-xs text-muted">{x.teamName}</span><span className="ml-auto text-xs text-muted">{x.date ? dateBr(x.date) : ''}</span></li>)}</ul></div>}
+        {totw.map((t, i) => <div key={i}><div className="mb-1 font-semibold">Time da semana · {t.date ? dateBr(t.date) : ''}</div><ul className="grid grid-cols-2 gap-1 text-sm">{t.players.map((id) => <li key={id} className={`flex items-center gap-1 ${mine.has(id) ? 'font-semibold text-accent' : ''}`}><Face id={id} ea={ea} size={18} /><PN id={id} ea={ea} /></li>)}</ul></div>)}
       </div>}>
       {potm[0] && <>
         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Jogador do mês</p>
-        <div className="flex items-center gap-2 py-1 text-sm"><Face id={potm[0].playerId} ea={ea} size={32} /><div><div className="font-semibold">{ea.player(potm[0].playerId).short}</div><div className="text-[11px] text-muted">{potm[0].teamName} · {potm[0].date ? dateBr(potm[0].date) : ''}</div></div></div>
+        <div className="flex items-center gap-2 py-1 text-sm"><Face id={potm[0].playerId} ea={ea} size={32} /><div><div className="font-semibold"><PN id={potm[0].playerId} ea={ea} /></div><div className="text-[11px] text-muted">{potm[0].teamName} · {potm[0].date ? dateBr(potm[0].date) : ''}</div></div></div>
       </>}
       {last && <>
         <Section>Time da semana · {last.date ? dateBr(last.date) : ''}</Section>
-        <ul className="grid grid-cols-2 gap-x-2 text-xs">{last.players.map((id) => <li key={id} className={`flex items-center gap-1 py-0.5 ${mine.has(id) ? 'font-semibold text-accent' : ''}`}><Face id={id} ea={ea} size={16} /><span className="truncate">{ea.player(id).short}</span></li>)}</ul>
+        <ul className="grid grid-cols-2 gap-x-2 text-xs">{last.players.map((id) => <li key={id} className={`flex items-center gap-1 py-0.5 ${mine.has(id) ? 'font-semibold text-accent' : ''}`}><Face id={id} ea={ea} size={16} /><span className="truncate"><PN id={id} ea={ea} /></span></li>)}</ul>
       </>}
     </Card>
   );

@@ -5,7 +5,7 @@ import { buildTips, starters } from '@/lib/career/tips';
 import { fromYmd, seasonOf } from '@/lib/career/dates';
 import { lineOf, posLabel, xOf } from '@/lib/career/positions';
 import type { Match } from '@/lib/career/snapshot';
-import { Bar, Card, Ovr, Pic, Stat, Table, Tabs, dateBr, money, timeBr } from './ui';
+import { Bar, Card, Ovr, Pic, Stat, Table, Tabs, dateBr, money, timeBr, PN } from './ui';
 import type { Career } from '@/lib/career/merge';
 import type { Ea } from './names';
 
@@ -43,7 +43,7 @@ function MatchTable({ list, s, ea }: { list: Match[]; s: CareerSnapshot; ea: Ea 
 }
 
 function PlayerName({ id, ea, sub }: { id: number; ea: Ea; sub?: React.ReactNode }) {
-  return <span className="flex items-center gap-2"><Face id={id} ea={ea} size={22} /><span><span className="block">{ea.player(id).short}</span>{sub && <span className="block text-[11px] text-muted">{sub}</span>}</span></span>;
+  return <span className="flex items-center gap-2"><Face id={id} ea={ea} size={22} /><span><span className="block"><PN id={id} ea={ea} /></span>{sub && <span className="block text-[11px] text-muted">{sub}</span>}</span></span>;
 }
 
 /** Tabela do elenco inteiro (janela "Ver tudo" de vários cards). */
@@ -61,7 +61,7 @@ function PlayerLine({ p, ea, right }: { p: SquadPlayer; ea: Ea; right?: React.Re
   return (
     <li className="flex items-center gap-2 py-1 text-sm">
       <Face id={p.id} ea={ea} size={24} />
-      <span className="truncate">{ea.player(p.id).short}</span>
+      <span className="truncate"><PN id={p.id} ea={ea} /></span>
       <span className="text-xs text-muted">{posLabel(p.pos)}</span>
       <span className="ml-auto flex items-center gap-2">{right ?? <Ovr v={p.ovr} />}</span>
     </li>
@@ -111,7 +111,7 @@ export function Calendar({ s, ea }: P) {
           <li key={m.date + m.homeName} className="flex gap-2"><span className="w-10 text-muted">{dateBr(m.date).slice(0, 5)}</span>
             <span className="truncate">{m.homeName} x {m.awayName}{m.played ? ` · ${m.homeGoals}–${m.awayGoals}` : ` · ${timeBr(m.time)}`}</span></li>
         ))}
-        {back.map((p) => <li key={p.id} className="flex gap-2"><span className="w-10 text-muted">{dateBr(p.injuryReturn!).slice(0, 5)}</span><span>✚ {ea.player(p.id).short} volta de lesão</span></li>)}
+        {back.map((p) => <li key={p.id} className="flex gap-2"><span className="w-10 text-muted">{dateBr(p.injuryReturn!).slice(0, 5)}</span><span>✚ <PN id={p.id} ea={ea} /> volta de lesão</span></li>)}
         {!games.length && !back.length && <li className="text-muted">Nenhum jogo nos próximos 7 dias.</li>}
       </ul>
     </Card>
@@ -241,7 +241,7 @@ function TransferRow({ t, s, ea, fee = true }: { t: { date: number; playerId: nu
     <li className={`flex items-center gap-2 rounded p-1 text-sm ${mine ? 'bg-accent/15' : ''}`}>
       <Face id={t.playerId} ea={ea} size={28} />
       <div className="min-w-0 flex-1">
-        <div className="truncate font-semibold">{ea.player(t.playerId).short}</div>
+        <div className="truncate font-semibold"><PN id={t.playerId} ea={ea} /></div>
         <div className="flex items-center gap-1 truncate text-[11px] text-muted">
           <Crest id={t.fromId} name={t.fromName} ea={ea} size={12} />{t.fromName} → <Crest id={t.toId} name={t.toName} ea={ea} size={12} />{t.toName}
         </div>
@@ -360,7 +360,7 @@ export function StartingXI({ s, ea }: P) {
             return (
               <div key={p.playerId} className="absolute flex w-16 -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center" style={{ left: `${p.x * 100}%`, top: `${92 - p.y * 84}%` }}>
                 <div className="relative"><Face id={p.playerId} ea={ea} size={32} />{pl && <span className="absolute -right-3 -top-1"><Ovr v={pl.ovr} /></span>}</div>
-                <span className="mt-0.5 w-full truncate text-[10px] font-semibold">{ea.player(p.playerId).short}{p.playerId === tac!.captain ? ' (C)' : ''}</span>
+                <span className="mt-0.5 w-full truncate text-[10px] font-semibold"><PN id={p.playerId} ea={ea} />{p.playerId === tac!.captain ? ' (C)' : ''}</span>
               </div>
             );
           })}
@@ -381,7 +381,7 @@ function LegacyXI({ s, ea }: P) {
           {r.map((p) => (
             <div key={p.id} className="flex w-16 flex-col items-center text-center">
               <div className="relative"><Face id={p.id} ea={ea} size={32} /><span className="absolute -right-3 -top-1"><Ovr v={p.ovr} /></span></div>
-              <span className="mt-1 w-full truncate text-[11px] font-semibold">{ea.player(p.id).short}</span>
+              <span className="mt-1 w-full truncate text-[11px] font-semibold"><PN id={p.id} ea={ea} /></span>
             </div>
           ))}
         </div>
@@ -480,7 +480,7 @@ export function SetPieces({ s, ea }: P) {
     return (
       <li className="flex items-center gap-2 border-b border-line/60 py-1.5 text-sm">
         <span className="w-36 text-[11px] font-semibold uppercase text-muted">{label}</span>
-        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3">{list.length ? list.map((id) => <span key={id} className="flex items-center gap-1"><Face id={id} ea={ea} size={20} />{ea.player(id).short}</span>) : '—'}</span>
+        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3">{list.length ? list.map((id) => <span key={id} className="flex items-center gap-1"><Face id={id} ea={ea} size={20} /><PN id={id} ea={ea} /></span>) : '—'}</span>
         {list[0] && byId.get(list[0]) && <Ovr v={byId.get(list[0])!.ovr} />}
       </li>
     );
@@ -558,7 +558,7 @@ export function SquadRoles({ s, ea }: P) {
         <li key={p.id} className="flex items-center gap-2 py-1 text-sm">
           <Face id={p.id} ea={ea} size={24} />
           <div className="min-w-0 flex-1">
-            <div className="truncate">{ea.player(p.id).short}</div>
+            <div className="truncate"><PN id={p.id} ea={ea} /></div>
             <div className="text-[11px] text-muted"><span className={p.role ? ROLE_COLOR[p.role] : ''}>{p.role ? ROLE[p.role] : '—'}</span> · até {p.contractUntil} · {months(p.contractUntil)} meses</div>
           </div>
           <span className="text-xs font-semibold tabular-nums">{money(p.wage)}/sem</span>
@@ -633,7 +633,7 @@ export function SeasonLeaders({ s, ea }: P) {
   const row = (label: string, id: number | undefined, value: React.ReactNode) => id == null ? null : (
     <li key={label} className="flex items-center gap-2 py-1.5">
       <Face id={id} ea={ea} size={30} />
-      <div className="min-w-0 flex-1"><div className="text-[11px] text-muted">{label}</div><div className="truncate text-sm font-semibold">{ea.player(id).short}</div></div>
+      <div className="min-w-0 flex-1"><div className="text-[11px] text-muted">{label}</div><div className="truncate text-sm font-semibold"><PN id={id} ea={ea} /></div></div>
       <span className="text-xl font-bold tabular-nums">{value}</span>
     </li>
   );
@@ -713,7 +713,7 @@ export function GoldenBoot({ s, ea }: P) {
               <span className="w-4 text-right text-xs text-muted">{i + 1}</span>
               <Face id={x.playerId} ea={ea} size={26} />
               <div className="min-w-0 flex-1">
-                <div className={`truncate text-sm ${x.teamId === s.club.id ? 'font-semibold' : ''}`}>{ea.player(x.playerId).short}</div>
+                <div className={`truncate text-sm ${x.teamId === s.club.id ? 'font-semibold' : ''}`}><PN id={x.playerId} ea={ea} /></div>
                 <div className="flex items-center gap-1 text-[11px] text-muted"><Crest id={x.teamId} name={teamName.get(x.teamId) ?? ''} ea={ea} size={12} />{teamName.get(x.teamId) ?? (x.teamId === s.club.id ? s.club.name : '')} · {x.apps} jogos</div>
               </div>
               <span className="text-lg font-bold tabular-nums">{t.id === 'rating' ? nota(x.avgRating) : t.f(x)}</span>
@@ -886,10 +886,10 @@ export function WhatChanged({ s, ea, career }: P) {
   const budget = s.finances && prev.finances ? s.finances.currentBudget - prev.finances.currentBudget : 0;
   const lines: React.ReactNode[] = [
     games.length ? <span key="g">{games.length} jogo(s): {games.map((m) => `${m.homeName} ${m.homeGoals}–${m.awayGoals} ${m.awayName}`).slice(-3).join(' · ')}</span> : null,
-    ...joined.map((p) => <span key={'j' + p.id}><span className="text-good">Chegou</span> {ea.player(p.id).short}</span>),
-    ...left.map((p) => <span key={'l' + p.id}><span className="text-bad">Saiu</span> {ea.player(p.id).short}</span>),
+    ...joined.map((p) => <span key={'j' + p.id}><span className="text-good">Chegou</span> <PN id={p.id} ea={ea} /></span>),
+    ...left.map((p) => <span key={'l' + p.id}><span className="text-bad">Saiu</span> <PN id={p.id} ea={ea} /></span>),
     budget ? <span key="b">Orçamento {budget > 0 ? '+' : '−'}{money(Math.abs(budget))}</span> : null,
-    ...ovr.map(({ p, d }) => <span key={'o' + p.id}>{ea.player(p.id).short} <span className={d > 0 ? 'text-good' : 'text-bad'}>{d > 0 ? '+' : ''}{d} OVR</span> ({p.ovr})</span>),
+    ...ovr.map(({ p, d }) => <span key={'o' + p.id}><PN id={p.id} ea={ea} /> <span className={d > 0 ? 'text-good' : 'text-bad'}>{d > 0 ? '+' : ''}{d} OVR</span> ({p.ovr})</span>),
   ].filter(Boolean);
   return (
     <Card title="O que mudou desde o último save" help={`Comparação com o save de ${dateBr(prev.gameDate)}: jogos, contratações, saídas, orçamento e mudanças de OVR (o OVR do FC 27 varia com forma, moral e condição).`}
@@ -941,7 +941,7 @@ export function Loans({ s, ea }: P) {
     <li key={`${l.dir}-${l.playerId}`} className="flex items-center gap-2 py-1 text-sm">
       <Face id={l.playerId} ea={ea} size={24} />
       <div className="min-w-0 flex-1">
-        <div className="truncate font-semibold">{ea.player(l.playerId).short}</div>
+        <div className="truncate font-semibold"><PN id={l.playerId} ea={ea} /></div>
         <div className="flex items-center gap-1 truncate text-[11px] text-muted">{l.dir === 'out' ? 'Para' : 'De'} <Crest id={l.clubId} name={l.clubName} ea={ea} size={12} />{l.clubName} · até {dateBr(l.until)}</div>
       </div>
       {l.ovr > 0 && <Ovr v={l.ovr} />}
