@@ -1,12 +1,14 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useContext } from 'react';
+import { Drawer, DrawerRegistry } from '../drawer/kit';
 
 /**
  * Card da Home. Todos têm a mesma altura (como no CM Tracker); o que não cabe fica em "Ver tudo",
  * que abre uma janela com a lista completa.
  */
-export function Card({ title, help, wave, empty, className = '', action, children, more, wide }: {
-  title: string; help?: string; wave?: number; empty?: string; className?: string; action?: React.ReactNode; children?: React.ReactNode;
+export function Card({ title, help, wave, empty, className = '', action, children, more, wide, drawerTitle }: {
+  title: string; drawerTitle?: string; help?: string; wave?: number; empty?: string; className?: string; action?: React.ReactNode; children?: React.ReactNode;
   /** Conteúdo completo mostrado na janela "Ver tudo". */
   more?: React.ReactNode | (() => React.ReactNode);
   /** Cards largos (linha inteira) crescem com o conteúdo. */
@@ -14,6 +16,8 @@ export function Card({ title, help, wave, empty, className = '', action, childre
 }) {
   const [tip, setTip] = useState(false);
   const [open, setOpen] = useState(false);
+  const reg = useContext(DrawerRegistry)[title];
+  if (reg) { more = reg.render; drawerTitle = reg.title; }
   return (
     <section className={`relative flex h-full flex-col rounded-[10px] px-[18px] pb-[18px] pt-4 ${wide ? 'min-h-[220px]' : 'min-h-[460px] max-h-[560px]'} ${empty ? 'border border-dashed border-[#3a3a3a] bg-transparent' : 'bg-card'} ${className}`}>
       <header className="mb-3 flex shrink-0 items-center gap-2">
@@ -41,7 +45,7 @@ export function Card({ title, help, wave, empty, className = '', action, childre
       {more && !empty && (
         <button onClick={() => setOpen(true)} className="title mt-3 self-start rounded-md border border-line px-3 py-1.5 text-[12px] text-link hover:bg-[#232323]">Ver tudo ›</button>
       )}
-      {open && <Modal title={title} onClose={() => setOpen(false)}>{typeof more === 'function' ? more() : more}</Modal>}
+      {open && <Drawer title={drawerTitle ?? title} onClose={() => setOpen(false)}>{typeof more === 'function' ? more() : more}</Drawer>}
     </section>
   );
 }

@@ -11,6 +11,8 @@ import * as W2 from './widgets2';
 import { SquadPage } from '../squad/SquadPage';
 import { YouthPage } from '../squad/YouthPage';
 import { TrophiesPage } from '../squad/TrophiesPage';
+import { DrawerRegistry, HubContext } from '../drawer/kit';
+import { drawerRegistry } from '../drawer/registry';
 
 
 const SECTIONS = [
@@ -113,7 +115,10 @@ export function Home() {
   if (!snaps) return <p className="p-8 text-muted">Carregando…</p>;
   if (!s || uploading) return <main className="p-4 pt-16"><Upload onFile={onFile} busy={busy} error={error} onCancel={s ? () => setUploading(false) : undefined} /></main>;
 
+  const registry = drawerRegistry(s, ea, career);
   return (
+    <HubContext.Provider value={{ season: s.season }}>
+    <DrawerRegistry.Provider value={registry}>
     <main className="mx-auto max-w-[1280px] space-y-6 px-4 pb-14 pt-4 md:px-6">
       <Header s={s} ea={ea} onUpload={() => setUploading(true)} careers={careers} current={career!} onChoose={choose} page={page} setPage={setPage}
         onRemove={async (k) => { if (confirm('Apagar esta carreira e todos os saves dela deste navegador?')) setSnaps(await removeCareer(careerKey, k)); }} />
@@ -146,5 +151,7 @@ export function Home() {
         </div>
       )}
     </main>
+    </DrawerRegistry.Provider>
+    </HubContext.Provider>
   );
 }
