@@ -10,6 +10,7 @@ import * as W from './widgets';
 import * as W2 from './widgets2';
 import { SquadPage } from '../squad/SquadPage';
 import { YouthPage } from '../squad/YouthPage';
+import { TrophiesPage } from '../squad/TrophiesPage';
 
 
 const SECTIONS = [
@@ -116,7 +117,7 @@ export function Home() {
     <main className="mx-auto max-w-[1280px] space-y-6 px-4 pb-14 pt-4 md:px-6">
       <Header s={s} ea={ea} onUpload={() => setUploading(true)} careers={careers} current={career!} onChoose={choose} page={page} setPage={setPage}
         onRemove={async (k) => { if (confirm('Apagar esta carreira e todos os saves dela deste navegador?')) setSnaps(await removeCareer(careerKey, k)); }} />
-      {page === 'elenco' ? <SquadPage s={s} ea={ea} /> : page === 'base' ? <YouthPage s={s} ea={ea} /> : (
+      {page === 'elenco' ? <SquadPage s={s} ea={ea} /> : page === 'base' ? <YouthPage s={s} ea={ea} /> : page === 'trofeus' ? <TrophiesPage s={s} ea={ea} career={career!} /> : (
         <div>
           <div className="flex items-baseline justify-between"><h2 className="title text-[15px]">Visão do clube</h2><span className="text-xs text-muted">Do save enviado · temporada {s.season}</span></div>
           <nav className="sticky top-0 z-30 -mx-4 mb-2 flex gap-5 overflow-x-auto border-b border-line bg-bg/95 px-4 backdrop-blur md:-mx-6 md:px-6">

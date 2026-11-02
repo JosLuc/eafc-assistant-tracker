@@ -10,6 +10,7 @@ export const PAGES = [
   { id: 'inicio', label: 'Início', icon: '⌂' },
   { id: 'elenco', label: 'Elenco', icon: '☷' },
   { id: 'base', label: 'Base', icon: '✪' },
+  { id: 'trofeus', label: 'Troféus', icon: '🏆' },
 ] as const;
 export type Page = (typeof PAGES)[number]['id'];
 
