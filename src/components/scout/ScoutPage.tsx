@@ -8,6 +8,7 @@ import { useEa, useEaMeta } from '../home/names';
 import { Ovr, Pic, money } from '../home/ui';
 import { useHub } from '../drawer/kit';
 import { ClubsView, ManagersView } from './ScoutOthers';
+import { ROLES } from '@/lib/career/roles';
 
 /**
  * Aba Scout: busca em todos os jogadores do save (≈22 mil) com filtros por faixa, posições com Ou/E,
@@ -141,6 +142,8 @@ function PlayersScout({ s, db }: P) {
   if (f.retiring != null) chips.push({ label: f.retiring ? 'Aposentando' : 'Não aposenta', clear: () => set({ retiring: null }) });
   if (f.free) chips.push({ label: 'Agentes livres', clear: () => set({ free: false }) });
   if (f.generated) chips.push({ label: 'Jogadores gerados', clear: () => set({ generated: false }) });
+  const roleLabel = (k: number) => `${ROLES[k % 100]?.pos} ${ROLES[k % 100]?.name}${k >= 100 ? '++' : '+'}`;
+  if (f.roles?.length) chips.push({ label: `Roles: ${f.roles.map(roleLabel).join(f.rolesMode === 'and' ? ' e ' : ' ou ')}`, clear: () => set({ roles: [] }) });
   if (f.nation != null) chips.push({ label: `País: ${meta?.nations[f.nation]?.label ?? f.nation}`, clear: () => set({ nation: null }) });
   if (f.styles?.length) chips.push({ label: `PlayStyles: ${f.styles.map((k) => meta?.abilities[k]?.label ?? k).join(f.stylesMode === 'and' ? ' e ' : ' ou ')}`, clear: () => set({ styles: [] }) });
 
@@ -230,6 +233,26 @@ function PlayersScout({ s, db }: P) {
             <Sel label="Pé preferido" value={f.foot} onChange={(v) => set({ foot: v })} options={[[1, 'Direito'], [2, 'Esquerdo']]} />
             <Sel label="Aposentando" value={f.retiring} onChange={(v) => set({ retiring: v })} options={[[1, 'Sim'], [0, 'Não']]} />
             <Sel label="Nacionalidade" value={f.nation} onChange={(v) => set({ nation: v })} options={nations} />
+            {match('Roles') && (
+              <div>
+                <div className="mb-1 flex items-center justify-between text-[12px] text-muted">
+                  <span>Roles</span>
+                  <span className="flex gap-1">
+                    {(['or', 'and'] as const).map((x) => <button key={x} onClick={() => set({ rolesMode: x })} className={`rounded px-1.5 py-0.5 ${f.rolesMode === x ? 'bg-accent text-white' : 'border border-line'}`}>{x === 'or' ? 'Ou' : 'E'}</button>)}
+                  </span>
+                </div>
+                <select value="" onChange={(e) => e.target.value && set({ roles: [...new Set([...(f.roles ?? []), Number(e.target.value)])] })} className="w-full rounded-md border border-line bg-[#191919] px-2.5 py-2 text-[13px]">
+                  <option value="">Adicionar role</option>
+                  <optgroup label="Role+ (ou melhor)">{Object.entries(ROLES).map(([k, r]) => <option key={k} value={k}>{r.pos} · {r.name}+</option>)}</optgroup>
+                  <optgroup label="Role++">{Object.entries(ROLES).map(([k, r]) => <option key={'p' + k} value={Number(k) + 100}>{r.pos} · {r.name}++</option>)}</optgroup>
+                </select>
+                {(f.roles ?? []).length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {f.roles.map((k) => <button key={k} onClick={() => set({ roles: f.roles.filter((x) => x !== k) })} className="rounded bg-accent px-2 py-0.5 text-[11px] font-semibold text-white">{roleLabel(k)} ✕</button>)}
+                  </div>
+                )}
+              </div>
+            )}
             {match('PlayStyles') && styleOpts.length > 0 && (
               <div>
                 <div className="mb-1 flex items-center justify-between text-[12px] text-muted">

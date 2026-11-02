@@ -1,4 +1,5 @@
 import { hasAbility } from './playstyles';
+import { hasRole } from './roles';
 import { ATTRS, ATTR_LABEL, FREE_AGENT_LEAGUES, estimateValue, type DbField, type PlayerDb } from './playerdb';
 
 /**
@@ -50,9 +51,9 @@ export interface ScoutFilter {
   pos: number[]; posMode: 'or' | 'and'; posScope: 'main' | 'any';
   gender: number | null; league: number | null; team: number | null; foot: number | null; retiring: number | null;
   free: boolean; generated: boolean;
-  nation: number | null; styles: string[]; stylesMode: 'or' | 'and';
+  nation: number | null; styles: string[]; stylesMode: 'or' | 'and'; roles: number[]; rolesMode: 'or' | 'and';
 }
-export const EMPTY: ScoutFilter = { ranges: {}, pos: [], posMode: 'or', posScope: 'any', gender: 0, league: null, team: null, foot: null, retiring: null, free: false, generated: false, nation: null, styles: [], stylesMode: 'or' };
+export const EMPTY: ScoutFilter = { ranges: {}, pos: [], posMode: 'or', posScope: 'any', gender: 0, league: null, team: null, foot: null, retiring: null, free: false, generated: false, nation: null, styles: [], stylesMode: 'or', roles: [], rolesMode: 'or' };
 
 /** Valor de um jogador numa chave de faixa, já na unidade mostrada (mi, mil, estrelas 1–5). */
 export function rangeValue(db: PlayerDb, d: Derived, key: string, i: number): number {
@@ -88,6 +89,10 @@ export function runScout(db: PlayerDb, d: Derived, f: ScoutFilter, opts: { nameI
       const has = (k: string) => hasAbility(c, i, k);
       if (f.stylesMode === 'and' ? !f.styles.every(has) : !f.styles.some(has)) continue;
     }
+    if (f.roles?.length) {
+      const has = (k: number) => hasRole(c, i, k);
+      if (f.rolesMode === 'and' ? !f.roles.every(has) : !f.roles.some(has)) continue;
+    }
     if (f.pos.length) {
       const has = (p: number) => (f.posScope === 'main' ? POS[0]![i] === p : POS.some((col) => col[i] === p));
       if (f.posMode === 'and' ? !f.pos.every(has) : !f.pos.some(has)) continue;
@@ -105,5 +110,5 @@ export function runScout(db: PlayerDb, d: Derived, f: ScoutFilter, opts: { nameI
 /** Quantos filtros estão ativos (para o contador e os chips). */
 export function activeCount(f: ScoutFilter): number {
   return Object.values(f.ranges).filter(([a, b]) => a != null || b != null).length + (f.pos.length ? 1 : 0)
-    + [f.league, f.team, f.foot, f.retiring].filter((x) => x != null).length + (f.gender !== 0 ? 1 : 0) + (f.free ? 1 : 0) + (f.generated ? 1 : 0) + (f.nation != null ? 1 : 0) + (f.styles?.length ? 1 : 0);
+    + [f.league, f.team, f.foot, f.retiring].filter((x) => x != null).length + (f.gender !== 0 ? 1 : 0) + (f.free ? 1 : 0) + (f.generated ? 1 : 0) + (f.nation != null ? 1 : 0) + (f.styles?.length ? 1 : 0) + (f.roles?.length ? 1 : 0);
 }

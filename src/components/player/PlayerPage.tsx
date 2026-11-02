@@ -8,6 +8,7 @@ import { posLabel } from '@/lib/career/positions';
 import { Ovr, Pic, dateBr, money, ratingColor } from '../home/ui';
 import { useEaMeta, type Ea } from '../home/names';
 import { abilityKeys } from '@/lib/career/playstyles';
+import { playerRoles } from '@/lib/career/roles';
 
 /**
  * Página do jogador (abre ao clicar num nome): ficha, radar, nota por posição, atributos,
@@ -58,6 +59,7 @@ export function PlayerPage({ s, ea, db, id, onBack }: P) {
     return () => { window.removeEventListener('keydown', on, true); document.body.style.overflow = prev; };
   }, [onBack]);
   const r = db ? dbRow(db, id) : null;
+  const roles = r ? playerRoles(r) : [];
   const nation = r && meta ? meta.nations[r.nationality] : undefined;
   // PlayStyle+ primeiro; bits sem nome na base da EA ficam de fora.
   const styles = r && meta ? abilityKeys(r).map((key) => ({ key, ...meta.abilities[key]! })).filter((x) => x.label).sort((a, b) => Number(b.plus) - Number(a.plus)) : [];
@@ -144,6 +146,18 @@ export function PlayerPage({ s, ea, db, id, onBack }: P) {
               <Fact label="Aposentando">{r ? (r.isretiring ? 'Sim' : 'Não') : '—'}</Fact>
               <Fact label="Nacionalidade">{nation ? <span className="flex items-center gap-1.5">{nation.flag && <img src={nation.flag} alt="" className="h-3.5 w-5 rounded-[2px] object-cover" />}<span className="truncate">{nation.label}</span></span> : '—'}</Fact>
             </div>
+            {roles.length > 0 && (
+              <div className="mt-4">
+                <div className="label mb-2">Roles · {roles.length}</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {roles.map((x, k) => (
+                    <span key={k} className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-semibold ${x.plus === 2 ? 'bg-accent text-white' : 'border border-accent/60 bg-accent/10'}`}>
+                      <span className="text-[10px] opacity-80">{x.pos}</span>{x.name}<span className="text-[11px]">{x.plus === 2 ? '++' : '+'}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             {styles.length > 0 && (
               <div className="mt-4">
                 <div className="label mb-2">PlayStyles · {styles.length}</div>
