@@ -35,6 +35,7 @@ Cada save tem **80 módulos** e **41 tabelas**. A coluna "Saves" diz onde o dado
 | socm | Feed de notícias: **time da semana**, **jogador do mês**, demissões e contratações de técnicos, rumores, clássicos | todos (só os posts recentes; o app acumula) | lido, sem card ainda |
 | emlm | Caixa de e-mails: aviso da diretoria, lesões, volta de lesão, base, fim de empréstimo, aposentadoria | todos | lido, sem card ainda |
 | dovm | OVR dinâmico de cada jogador do seu elenco: quanto a forma e o cansaço mudam o OVR, e a variação por atributo (forma, bônus de pré-temporada, cansaço) | todos (27 no Newcastle) | lido, sem card ainda |
+| stvm | **Estatísticas da temporada passada** de 3.886 jogadores, por competição: gols, assistências, jogos sem sofrer gol, amarelos, vermelhos, jogos, e os clubes da temporada. Conferido com Haaland (27 gols em 35 jogos na Premier League), Kane (36 na Bundesliga) e Raya (15 jogos sem sofrer gol). Provável que seja atualizado na virada da temporada | todos | lido, sem card ainda |
 | coam | Comissão técnica: nome, nascimento, nacionalidade, salário, função, nível (1–3) e 4 notas (1–5) dos 4 treinadores do clube, mais o mercado de treinadores (20–21) | todos | lido, sem card ainda (função e notas: prováveis) |
 | plcm | Lista 4 = papel de cada jogador do elenco (igual ao pstm). As outras 9 listas estão vazias em todos os saves; depois vem uma tabela de 152 chaves com 4 clubes cada, sem significado ainda | todos | não precisa (repete o pstm) |
 | pdrm | **Provável**: jogadores sugeridos/observados para o seu clube (estado 0–2, categoria, nota, data em que entrou). No início do América: agentes livres e jogadores da Liga MX; no Newcastle: OVR 72–83 | todos | lido como provável |
@@ -46,7 +47,6 @@ Para fechar estes, preciso comparar com a tela do jogo (print) ou com um save ti
 
 | Módulo | O que já sei | Onde muda |
 |---|---|---|
-| stvm | Histórico de cada jogador por clube (3.886 jogadores): 01 | playerid | 01 | n clubes | n × (01 | bloco de bits | 01 | teamid). Ex.: 20801 → Al Nassr. O bloco de bits tem tamanho variável (8 bytes no primeiro clube, menor nos seguintes); provável estatísticas por clube de temporadas anteriores. Quase não muda durante a temporada (América início vs. Pisa fim: só inserções) | só entre temporadas/transferências (igual antes e depois do jogo da Premier) |
 | psrm | 6 listas de jogadores da mesma liga do clube (49, 40…), cada um com uma marca de tamanho variável (0 ou 1 + valor). Provável busca de olheiros / jogadores recomendados | cresce na temporada |
 | jbom | 836 clubes, registros de 24 B (teamid, nota 41–90, 14 vagas vazias); no fim da temporada aparecem ofertas de emprego para técnicos. Provável mercado de técnicos | fim da temporada |
 | intm | Modo seleção do técnico. Como você não treina seleção, quase tudo vem vazio (ff): só os nomes das competições internacionais (C1991, C2136, amistosos). Igual entre os saves do Newcastle | só se treinar uma seleção |

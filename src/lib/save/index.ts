@@ -21,6 +21,7 @@ import { readPlayerValues, readPlayerForm, type PlayerForm } from './modules/pla
 import { readSocial, EMAIL, type SocialPost } from './modules/social';
 import { readDynamicOvr, type DynamicOvr } from './modules/dynamicOvr';
 import { readCoaches, type Coach } from './modules/coaches';
+import { readSeasonStats, type SeasonHistory } from './modules/seasonStats';
 import { readSuggestedPlayers, readMarketList, type SuggestedPlayer, type MarketListing } from './modules/market';
 
 export interface CareerSave {
@@ -61,6 +62,8 @@ export interface CareerSave {
   dynamicOvr: DynamicOvr[];
   /** Comissão técnica do clube e mercado de treinadores (coam). */
   coaches: Coach[];
+  /** Estatísticas da temporada passada por competição, de 3.886 jogadores (stvm). */
+  seasonStats: SeasonHistory[];
   /** Provável: jogadores sugeridos/observados para o clube (pdrm). */
   suggestedPlayers: SuggestedPlayer[];
   /** Provável: lista do mercado do mundo durante a janela (plmm). */
@@ -117,6 +120,7 @@ export function readSave(file: Uint8Array): CareerSave {
     emails: mod('emlm', (b) => readSocial(b, EMAIL)),
     dynamicOvr: mod('dovm', readDynamicOvr),
     coaches: mod('coam', readCoaches),
+    seasonStats: mod('stvm', readSeasonStats),
     suggestedPlayers: mod('pdrm', readSuggestedPlayers),
     marketList: mod('plmm', readMarketList),
     playerValues: one('pvlm', readPlayerValues) ?? new Map(),

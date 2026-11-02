@@ -25,6 +25,8 @@ export interface SquadPlayer {
   formScore?: number; formTrend?: number; recentRatings?: number[];
   /** OVR dinâmico (dovm): pontos de OVR ganhos/perdidos pela forma e pelo cansaço. */
   ovrForm?: number; ovrFatigue?: number;
+  /** Temporada passada por competição (stvm). */
+  lastSeason?: { competitionId: number; goals: number; assists: number; cleanSheets: number; yellows: number; reds: number; apps: number }[];
   /** Moral 0–100 e seus componentes (módulo pllm). */
   morale?: number; playingTime?: number;
 }
@@ -222,12 +224,15 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
   if (save.roles?.teamId === clubId) for (const p of squad) p.role = save.roles.roles.get(p.id);
   const forms = new Map(save.playerForm.map((f) => [f.playerId, f]));
   const dyn = new Map(save.dynamicOvr.map((d) => [d.playerId, d]));
+  const prev = new Map(save.seasonStats.map((x) => [x.playerId, x.comps]));
   for (const p of squad) {
     p.value = save.playerValues.get(p.id);
     const f = forms.get(p.id);
     if (f) { p.formScore = f.form; p.formTrend = f.trend; p.recentRatings = f.ratings; }
     const d = dyn.get(p.id);
     if (d) { p.ovrForm = d.form; p.ovrFatigue = d.fatigue; }
+    const ls = prev.get(p.id);
+    if (ls) p.lastSeason = ls;
   }
   let morale: CareerSnapshot['morale'] = null;
   if (save.morale?.teamId === clubId && save.morale.players.length) {

@@ -127,6 +127,11 @@ describe.skipIf(!existsSync(join(DIR, 's6.sav')))('várias carreiras', () => {
     // OVR dinâmico (dovm): Wissa +4 de forma e −3 de cansaço depois do jogo
     expect(s6.squad.find((p) => p.id === 266127)).toMatchObject({ ovrForm: 4, ovrFatigue: -3 });
     expect(s5.squad.find((p) => p.id === 266127)).toMatchObject({ ovrForm: 4, ovrFatigue: 0 });
+    // Temporada passada por competição (stvm)
+    const sb = readSave(new Uint8Array(readFileSync('saves/b.sav'))).seasonStats;
+    expect(sb).toHaveLength(3886);
+    expect(sb.find((x) => x.playerId === 239085)?.comps[0]).toMatchObject({ competitionId: 818, goals: 27, assists: 8, apps: 35 });
+    expect(sb.find((x) => x.playerId === 230621)?.comps[0]).toMatchObject({ competitionId: 818, cleanSheets: 15, apps: 34 });
     // Comissão técnica (coam): 4 treinadores do clube + mercado de treinadores
     expect(b.coaches.filter((c) => c.hired).map((c) => c.name)).toEqual(['Enrico Palmieri', 'Julian Brunel', 'Giulio Valentini', 'Marc Schmitt']);
     expect(b.coaches.find((c) => c.name === 'Enrico Palmieri')).toMatchObject({ birthDate: 19680520, nationality: 27, wage: 3192, level: 2, ratings: [1, 1, 3, 1] });
