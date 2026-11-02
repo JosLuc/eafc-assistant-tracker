@@ -7,6 +7,7 @@ import { useEa } from './names';
 import { Header } from './Header';
 import { Upload } from './Upload';
 import * as W from './widgets';
+import * as W2 from './widgets2';
 
 const SECTIONS = [
   { id: 'geral', label: 'Visão geral' },
@@ -35,6 +36,9 @@ const WIDGETS: { id: string; sections: Section[]; C: (p: { s: CareerSnapshot; ea
   { id: 'elenco', sections: ['elenco'], C: W.SquadOverview },
   { id: 'destaques', sections: ['elenco'], C: W.SeasonLeaders },
   { id: 'papeis', sections: ['elenco'], C: W.SquadRoles },
+  { id: 'forma', sections: ['geral', 'elenco'], C: W2.SquadForm },
+  { id: 'valor', sections: ['elenco', 'clube'], C: W2.SquadValue },
+  { id: 'temporada-passada', sections: ['elenco'], C: W2.LastSeason },
   { id: 'tatica', sections: ['elenco'], C: W.SetPieces, wide: true },
   { id: 'lesoes', sections: ['lesoes'], C: W.Availability },
   { id: 'cartoes', sections: ['lesoes'], C: W.Discipline },
@@ -44,18 +48,30 @@ const WIDGETS: { id: string; sections: Section[]; C: (p: { s: CareerSnapshot; ea
   { id: 'contratos', sections: ['contratos'], C: W.Contracts },
   { id: 'artilharia', sections: ['competicoes'], C: W.GoldenBoot },
   { id: 'trofeus', sections: ['competicoes'], C: W.Silverware },
+  { id: 'time-semana', sections: ['competicoes'], C: W2.LeagueAwards },
   { id: 'resultados', sections: ['competicoes'], C: W.Results },
   { id: 'jogos', sections: ['competicoes'], C: W.Fixtures },
   { id: 'clube', sections: ['clube'], C: W.Club },
   { id: 'financas', sections: ['clube'], C: W.ClubFinances },
+  { id: 'comissao', sections: ['clube'], C: W2.CoachingStaff },
   { id: 'cv', sections: ['tecnico'], C: W.ManagerCV },
   { id: 'cargo', sections: ['tecnico'], C: W.JobSecurity },
+  { id: 'emails', sections: ['tecnico'], C: W2.Inbox },
   { id: 'historico', sections: ['tecnico'], C: W.SeasonHistory, wide: true },
   { id: 'base', sections: ['base'], C: W.YouthAcademy },
   { id: 'olheiros', sections: ['base'], C: W.ScoutStaff },
   { id: 'pretemporada', sections: ['mundo'], C: W.PreseasonTour },
+  { id: 'noticias', sections: ['mundo'], C: W2.NewsFeed },
+  { id: 'rivais', sections: ['mundo', 'clube'], C: W2.LeagueRivals },
   { id: 'premios', sections: ['base', 'competicoes'], C: W.AwardsRace },
 ];
+
+/** Jogadores citados no feed, nos e-mails, no time da semana e no jogador do mês (para buscar nome e foto). */
+function newsPlayers(s: CareerSnapshot) {
+  const posts = [...(s.news ?? []), ...(s.emails ?? [])];
+  return [...posts.flatMap((x) => [...x.players, ...x.params.filter(([k, v]) => (k === 8 || k === 9 || k === 10) && v > 0 && v < 999999).map(([, v]) => v)]),
+    ...(s.teamOfWeek ?? []).flatMap((t) => t.players), ...(s.playerOfMonth ?? []).map((x) => x.playerId)];
+}
 
 export function Home() {
   const [snaps, setSnaps] = useState<CareerSnapshot[] | null>(null);
@@ -83,10 +99,10 @@ export function Home() {
     finally { setBusy(false); }
   }
 
-  const ids = useMemo(() => (s ? [...new Set([...s.squad.map((p) => p.id), ...s.transfers.map((t) => t.playerId), ...s.youth.map((y) => y.id), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.playerId)), ...(s.worldTransfers ?? []).map((t) => t.playerId), ...(s.tactic?.cornerSupport ?? []), ...(s.loans ?? []).map((l) => l.playerId)])] : []), [s]);
+  const ids = useMemo(() => (s ? [...new Set([...s.squad.map((p) => p.id), ...s.transfers.map((t) => t.playerId), ...s.youth.map((y) => y.id), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.playerId)), ...(s.worldTransfers ?? []).map((t) => t.playerId), ...(s.tactic?.cornerSupport ?? []), ...(s.loans ?? []).map((l) => l.playerId), ...newsPlayers(s)])] : []), [s]);
   const teamIds = useMemo(() => (s ? [...new Set([s.club.id, ...s.standings.flatMap((t) => t.rows.map((r) => r.teamId)),
     ...s.matches.flatMap((m) => [m.homeId, m.awayId]).filter((x): x is number => x != null),
-    ...s.transfers.flatMap((t) => [t.fromId, t.toId]), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.teamId)), ...(s.worldTransfers ?? []).flatMap((t) => [t.fromId, t.toId]), s.club.rivalId, ...(s.loans ?? []).map((l) => l.clubId), ...(s.preseason ?? []).flatMap((t) => t.teams.map((x) => x.id)), ...(s.awardsRace ?? []).map((x) => x.teamId)])] : []), [s]);
+    ...s.transfers.flatMap((t) => [t.fromId, t.toId]), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.teamId)), ...(s.worldTransfers ?? []).flatMap((t) => [t.fromId, t.toId]), s.club.rivalId, ...(s.loans ?? []).map((l) => l.clubId), ...(s.preseason ?? []).flatMap((t) => t.teams.map((x) => x.id)), ...(s.awardsRace ?? []).map((x) => x.teamId), ...(s.leagueRivals ?? []).map((x) => x.teamId), ...[...(s.news ?? []), ...(s.emails ?? [])].flatMap((x) => (x.teams ?? []).map((t) => t.id))])] : []), [s]);
   const ea = useEa(ids, teamIds, s?.names);
 
   if (!snaps) return <p className="p-8 text-muted">Carregando…</p>;
