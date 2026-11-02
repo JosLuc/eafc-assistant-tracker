@@ -4,7 +4,9 @@ import { NextResponse } from 'next/server';
  * Assistente do modo carreira. O Gemini responde primeiro; se falhar ou bater o limite, o Groq assume.
  * As chaves ficam só nas variáveis de ambiente da Vercel (GEMINI_API_KEY e GROQ_API_KEY), nunca no navegador.
  */
-export const maxDuration = 60;
+// Plano gratuito da Vercel aceita até 300 s; cada provedor tem seu próprio limite abaixo.
+export const maxDuration = 120;
+const GEMINI_TIMEOUT = 40_000, GROQ_TIMEOUT = 45_000;
 
 export interface AiMessage { role: 'user' | 'assistant'; content: string; images?: string[] }
 export interface AiRequest { messages: AiMessage[]; context: string }
@@ -26,7 +28,7 @@ const GROQ_VISION = list(process.env.GROQ_VISION_MODEL, ['meta-llama/llama-4-sco
 async function firstOk(models: string[], call: (model: string) => Promise<string>): Promise<string> {
   let last: unknown;
   for (const m of models) {
-    try { return await call(m); } catch (e) { last = e; if (/ 429| 401| 403/.test(String(e))) break; }
+    try { return await call(m); } catch (e) { last = e; if (/ 429| 401| 403|TimeoutError|aborted/.test(String(e))) break; }
   }
   throw last;
 }
@@ -39,7 +41,7 @@ async function gemini(key: string, req: AiRequest, model: string): Promise<strin
     parts: [{ text: m.content }, ...(m.images ?? []).map(splitDataUrl).filter(Boolean).map((x) => ({ inline_data: { mime_type: x!.mime, data: x!.data } }))],
   }));
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-    method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+    method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': key }, signal: AbortSignal.timeout(GEMINI_TIMEOUT),
     body: JSON.stringify({ systemInstruction: { parts: [{ text: `${SYSTEM}\n\nDADOS DO SAVE:\n${req.context}` }] }, contents, generationConfig: { temperature: 0.6 } }),
   });
   if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 200)}`);
@@ -57,8 +59,8 @@ async function groq(key: string, req: AiRequest, model: string): Promise<string>
       : { role: m.role, content: m.content })),
   ];
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model, messages, temperature: 0.6 }),
+    method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(GROQ_TIMEOUT),
+    body: JSON.stringify({ model, messages, temperature: 0.6, ...(model.startsWith('openai/gpt-oss') ? { reasoning_effort: 'low' } : {}) }),
   });
   if (!res.ok) throw new Error(`Groq ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const d = await res.json();
@@ -81,7 +83,7 @@ export async function POST(r: Request) {
   const errors: string[] = [];
   if (gk) {
     try { return NextResponse.json<AiResponse>({ text: await firstOk(GEMINI_MODELS, (m) => gemini(gk, body, m)), provider: 'gemini' }); }
-    catch (e) { errors.push(String(e)); }
+    catch (e) { errors.push(String(e)); console.warn('ai: gemini falhou, indo para o Groq:', String(e)); }
   }
   if (qk) {
     try { return NextResponse.json<AiResponse>({ text: await firstOk(body.messages.some((m) => m.images?.length) ? GROQ_VISION : GROQ_MODELS, (m) => groq(qk, body, m)), provider: 'groq' }); }

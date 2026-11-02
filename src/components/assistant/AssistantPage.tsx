@@ -81,7 +81,7 @@ export function AssistantPage({ s, ea, db, careerKey }: { s: CareerSnapshot; ea:
     setMsgs(next); setInput(''); setImages([]); setBusy(true);
     try {
       const r = await fetch('/api/ai', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ context, messages: next.filter((m) => !m.error).map(({ role, content, images }) => ({ role, content, images })) }) });
-      const d = (await r.json()) as AiResponse;
+      const d = (await r.json().catch(() => ({ error: r.status === 504 ? 'A resposta demorou demais. Tente uma pergunta mais curta ou de novo em instantes.' : `Erro do servidor (${r.status}).` }))) as AiResponse;
       if (d.text) setMsgs([...next, { role: 'assistant', content: d.text, provider: d.provider }]);
       else setMsgs([...next, { role: 'assistant', error: true, content: d.error === 'sem-chaves' ? 'As chaves do Gemini e do Groq ainda não foram configuradas na Vercel.' : d.error ?? 'Não consegui responder agora.' }]);
     } catch {
