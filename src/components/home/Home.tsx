@@ -8,6 +8,10 @@ import { Header } from './Header';
 import { Upload } from './Upload';
 import * as W from './widgets';
 import * as W2 from './widgets2';
+import { SquadPage } from '../squad/SquadPage';
+
+const PAGES = [{ id: 'inicio', label: 'Início' }, { id: 'elenco', label: 'Elenco' }] as const;
+type Page = (typeof PAGES)[number]['id'];
 
 const SECTIONS = [
   { id: 'geral', label: 'Visão geral' },
@@ -79,6 +83,7 @@ export function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [section, setSection] = useState<Section>('geral');
+  const [page, setPage] = useState<Page>('inicio');
 
   const [sel, setSel] = useState<string>();
   useEffect(() => {
@@ -113,6 +118,13 @@ export function Home() {
     <main className="mx-auto max-w-7xl space-y-4 p-4">
       <Header s={s} ea={ea} onUpload={() => setUploading(true)} careers={careers} current={career!} onChoose={choose}
         onRemove={async (k) => { if (confirm('Apagar esta carreira e todos os saves dela deste navegador?')) setSnaps(await removeCareer(careerKey, k)); }} />
+      <nav className="flex gap-2">
+        {PAGES.map((x) => (
+          <button key={x.id} onClick={() => setPage(x.id)}
+            className={`title rounded-lg px-4 py-2 text-sm ${page === x.id ? 'bg-accent text-white' : 'bg-card text-muted hover:text-white'}`}>{x.label}</button>
+        ))}
+      </nav>
+      {page === 'elenco' ? <SquadPage s={s} ea={ea} /> : <>
       <nav className="flex gap-1 overflow-x-auto border-b border-line">
         {SECTIONS.map((x) => {
           const n = WIDGETS.filter((w) => w.sections.includes(x.id)).length;
@@ -127,6 +139,7 @@ export function Home() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {visible.map(({ id, C, wide }) => <div key={id} className={wide ? 'md:col-span-2 xl:col-span-3' : ''}><C s={s} ea={ea} career={career!} /></div>)}
       </div>
+      </>}
     </main>
   );
 }
