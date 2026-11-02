@@ -1,7 +1,7 @@
 'use client';
 import { useEffect } from 'react';
 import type { CareerSnapshot } from '@/lib/career/snapshot';
-import { ATTRS, dbRow, type PlayerDb } from '@/lib/career/playerdb';
+import { ATTRS, ATTR_LABEL, dbRow, estimateValue, type Attr, type PlayerDb } from '@/lib/career/playerdb';
 import { PITCH, positionRatings } from '@/lib/career/posRatings';
 import { fromGameDays, toYmd } from '@/lib/career/dates';
 import { posLabel } from '@/lib/career/positions';
@@ -23,15 +23,6 @@ const GROUPS: { label: string; keys: string[] }[] = [
   { label: 'Mentalidade', keys: ['aggression', 'interceptions', 'positioning', 'vision', 'penalties', 'composure'] },
   { label: 'Goleiro', keys: ['gkdiving', 'gkhandling', 'gkkicking', 'gkpositioning', 'gkreflexes'] },
 ];
-const LABEL: Record<string, string> = {
-  crossing: 'Cruzamento', finishing: 'Finalização', headingaccuracy: 'Cabeceio', shortpassing: 'Passe curto', volleys: 'Voleio',
-  dribbling: 'Drible', curve: 'Curva', freekickaccuracy: 'Falta', longpassing: 'Passe longo', ballcontrol: 'Controle de bola',
-  acceleration: 'Aceleração', sprintspeed: 'Velocidade', agility: 'Agilidade', reactions: 'Reação', balance: 'Equilíbrio',
-  shotpower: 'Força do chute', jumping: 'Impulsão', stamina: 'Fôlego', strength: 'Força', longshots: 'Chute de longe',
-  aggression: 'Agressividade', interceptions: 'Interceptação', positioning: 'Posicionamento', vision: 'Visão', penalties: 'Pênaltis', composure: 'Compostura',
-  defensiveawareness: 'Noção defensiva', standingtackle: 'Desarme em pé', slidingtackle: 'Carrinho',
-  gkdiving: 'Elasticidade', gkhandling: 'Manejo', gkkicking: 'Chute (GOL)', gkpositioning: 'Posicionamento (GOL)', gkreflexes: 'Reflexos',
-};
 const FOOT = ['', 'Direito', 'Esquerdo'];
 const stars = (n: number) => '★'.repeat(Math.max(0, Math.min(5, n))) + '☆'.repeat(Math.max(0, 5 - n));
 
@@ -81,6 +72,7 @@ export function PlayerPage({ s, ea, db, id, onBack }: P) {
   const groups = attrs ? GROUPS.map((g) => ({ ...g, avg: Math.round(g.keys.reduce((a, k) => a + attrs[k]!, 0) / g.keys.length) })) : [];
   const bestGroup = [...groups].filter((g) => g.label !== 'Goleiro' || pos[0] === 0).sort((a, b) => b.avg - a.avg)[0];
   const value = sq?.value ?? youth?.value ?? (r && r.value >= 0 ? r.value : undefined);
+  const est = value == null && r ? estimateValue(r.overallrating, r.potential, r.age) : undefined;
   const stats = (s.stats ?? []).map((c) => ({ comp: c.competition, x: c.players.find((y) => y.playerId === id) })).filter((c) => c.x);
   const born = r ? toYmd(fromGameDays(r.birthdate)) : undefined;
   const joined = r && r.playerjointeamdate > 0 ? toYmd(fromGameDays(r.playerjointeamdate)) : undefined;
@@ -131,7 +123,7 @@ export function PlayerPage({ s, ea, db, id, onBack }: P) {
             <p className="label">{pos[0] != null ? posLabel(pos[0]) : ''}{r?.jersey ? ` · #${r.jersey}` : sq?.jersey ? ` · #${sq.jersey}` : ''} · FC 27 · ID {id}</p>
             <h2 className="title mt-1 text-2xl">{p.name}</h2>
             <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-              <Fact label="Valor">{value != null ? money(value) : '—'}</Fact>
+              <Fact label={est != null ? 'Valor (estimado)' : 'Valor'}>{value != null ? money(value) : est != null ? `~${money(est)}` : '—'}</Fact>
               <Fact label="Salário/sem">{sq ? money(sq.wage) : r ? money(r.wage) : '—'}</Fact>
               <Fact label="Multa">{r && r.releaseclause > 0 ? money(r.releaseclause) : '—'}</Fact>
               <Fact label="Contrato até">{sq?.contractUntil ?? r?.contractvaliduntil ?? '—'}</Fact>
@@ -157,7 +149,7 @@ export function PlayerPage({ s, ea, db, id, onBack }: P) {
                     <div className="mb-2 h-1.5 overflow-hidden rounded bg-[#2e2e2e]"><div className="h-full" style={{ width: `${g.avg}%`, background: ratingColor(g.avg) }} /></div>
                     {g.keys.map((k) => { const v = attrs[k]!; return (
                       <div key={k} className="flex items-center gap-2 py-0.5 text-[13px]">
-                        <span className="w-36 truncate text-muted">{LABEL[k]}</span>
+                        <span className="w-36 truncate text-muted">{ATTR_LABEL[k as Attr]}</span>
                         <span className="h-1 flex-1 overflow-hidden rounded bg-[#2e2e2e]"><span className="block h-full" style={{ width: `${v}%`, background: ratingColor(v) }} /></span>
                         <span className="num w-7 text-right font-bold" style={{ color: ratingColor(v) }}>{v}</span>
                       </div>
