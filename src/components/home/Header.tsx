@@ -12,6 +12,7 @@ export const PAGES = [
   { id: 'base', label: 'Base', icon: '✪' },
   { id: 'trofeus', label: 'Troféus', icon: '🏆' },
   { id: 'scout', label: 'Scout', icon: '⌖' },
+  { id: 'auxiliar', label: 'Auxiliar', icon: '✦' },
 ] as const;
 export type Page = (typeof PAGES)[number]['id'];
 
