@@ -9,8 +9,9 @@ import { Upload } from './Upload';
 import * as W from './widgets';
 import * as W2 from './widgets2';
 import { SquadPage } from '../squad/SquadPage';
+import { YouthPage } from '../squad/YouthPage';
 
-const PAGES = [{ id: 'inicio', label: 'Início' }, { id: 'elenco', label: 'Elenco' }] as const;
+const PAGES = [{ id: 'inicio', label: 'Início' }, { id: 'elenco', label: 'Elenco' }, { id: 'base', label: 'Base' }] as const;
 type Page = (typeof PAGES)[number]['id'];
 
 const SECTIONS = [
@@ -124,7 +125,7 @@ export function Home() {
             className={`title rounded-lg px-4 py-2 text-sm ${page === x.id ? 'bg-accent text-white' : 'bg-card text-muted hover:text-white'}`}>{x.label}</button>
         ))}
       </nav>
-      {page === 'elenco' ? <SquadPage s={s} ea={ea} /> : <>
+      {page === 'elenco' ? <SquadPage s={s} ea={ea} /> : page === 'base' ? <YouthPage s={s} ea={ea} /> : <>
       <nav className="flex gap-1 overflow-x-auto border-b border-line">
         {SECTIONS.map((x) => {
           const n = WIDGETS.filter((w) => w.sections.includes(x.id)).length;

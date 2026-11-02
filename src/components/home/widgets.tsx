@@ -818,7 +818,8 @@ export function YouthAcademy({ s, ea }: P) {
 }
 
 export function ScoutStaff({ s }: P) {
-  const st = (n: number) => '★'.repeat(n).padEnd(5, '☆');
+  // O jogo guarda 0–4; na tela do jogo são 1–5 estrelas.
+  const st = (n: number) => '★'.repeat(Math.min(5, n + 1)).padEnd(5, '☆');
   return (
     <Card title="Olheiros" help="Olheiros contratados, com experiência e julgamento (estrelas)."
       more={s.scouts.length > 4 ? () => <Table head={['Olheiro', 'Experiência', 'Julgamento']} rows={s.scouts.map((x) => [x.name, st(x.experience), st(x.knowledge)])} /> : undefined}>
