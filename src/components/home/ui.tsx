@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useContext } from 'react';
 import { Drawer, DrawerRegistry, useHub } from '../drawer/kit';
 import type { Ea } from './names';
+import { WHEN } from './help';
 
 /**
  * Card da Home. Todos têm a mesma altura (como no CM Tracker); o que não cabe fica em "Ver tudo",
@@ -29,7 +30,10 @@ export function Card({ title, help, wave, empty, className = '', action, childre
         )}
         <div className="ml-auto">{action}</div>
         {tip && help && (
-          <div className="absolute left-4 top-10 z-20 max-w-72 rounded-md border border-line bg-card-2 p-3 text-xs text-[#cfcfd6] shadow-xl">{help}</div>
+          <div role="tooltip" className="absolute left-4 top-10 z-20 w-80 max-w-[calc(100%-2rem)] space-y-2.5 rounded-lg border border-line bg-[#181818] p-3.5 text-xs leading-relaxed text-[#cfcfd6] shadow-2xl">
+            <div><div className="label mb-0.5 !text-[10px] text-white">O que mostra</div>{help}</div>
+            {WHEN[title] && <div><div className="label mb-0.5 !text-[10px] text-white">Quando tem dado</div>{WHEN[title]}</div>}
+          </div>
         )}
       </header>
       <div className={`min-h-0 flex-1 ${wide ? '' : 'overflow-hidden'}`}>

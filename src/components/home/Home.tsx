@@ -131,7 +131,7 @@ export function Home() {
       {page === 'elenco' ? <SquadPage s={s} ea={ea} /> : page === 'base' ? <YouthPage s={s} ea={ea} /> : page === 'trofeus' ? <TrophiesPage s={s} ea={ea} career={career!} /> : (
         <div>
           <div className="flex items-baseline justify-between"><h2 className="title text-[15px]">Visão do clube</h2><span className="text-xs text-muted">Do save enviado · temporada {s.season}</span></div>
-          <nav className="sticky top-0 z-30 -mx-4 mb-2 flex gap-5 overflow-x-auto border-b border-line bg-bg/95 px-4 backdrop-blur md:-mx-6 md:px-6">
+          <nav className="sticky top-12 z-30 -mx-4 mb-2 flex gap-5 overflow-x-auto border-b border-line bg-bg/95 px-4 backdrop-blur md:-mx-6 md:px-6">
             {SECTIONS.map((x) => {
               const n = WIDGETS.filter((w) => w.sections[0] === x.id).length;
               return (
@@ -146,7 +146,7 @@ export function Home() {
             const list = WIDGETS.filter((w) => w.sections[0] === x.id);
             if (!list.length) return null;
             return (
-              <section key={x.id} id={x.id} className="scroll-mt-14 pt-6">
+              <section key={x.id} id={x.id} className="scroll-mt-28 pt-6">
                 <div className="mb-3 flex items-baseline justify-between"><h2 className="title text-[15px]">{x.label}</h2><span className="text-xs text-faint">{list.length} cards</span></div>
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-12">
                   {list.map(({ id, C, wide }) => <div key={id} className={wide ? 'md:col-span-2 xl:col-span-12' : 'xl:col-span-4'}><C s={s} ea={ea} career={career!} /></div>)}
