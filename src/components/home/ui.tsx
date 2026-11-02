@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useContext } from 'react';
-import { Drawer, DrawerRegistry } from '../drawer/kit';
+import { Drawer, DrawerRegistry, useHub } from '../drawer/kit';
+import type { Ea } from './names';
 
 /**
  * Card da Home. Todos têm a mesma altura (como no CM Tracker); o que não cabe fica em "Ver tudo",
@@ -141,3 +142,14 @@ export function Pic({ src, name, size = 28, round = true }: { src?: string; name
 }
 
 export const timeBr = (hhmm: number) => `${String(Math.floor(hhmm / 100)).padStart(2, '0')}:${String(hhmm % 100).padStart(2, '0')}`;
+
+/** Nome do jogador que abre a página dele ao clicar (em qualquer card, tabela ou campinho). */
+export function PN({ id, ea }: { id: number; ea: Ea }) {
+  const { openPlayer } = useHub();
+  if (!openPlayer || !(id > 0)) return <>{ea.player(id).short}</>;
+  return (
+    <span role="link" tabIndex={0} className="cursor-pointer hover:text-link hover:underline"
+      onClick={(e) => { e.stopPropagation(); openPlayer(id); }}
+      onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); openPlayer(id); } }}>{ea.player(id).short}</span>
+  );
+}

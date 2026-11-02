@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import type { CareerSnapshot } from '@/lib/career/snapshot';
-import { addSnapshot, loadSnapshots, parseInWorker, removeCareer } from '@/lib/client/store';
+import { addSnapshot, loadDb, loadSnapshots, parseInWorker, removeCareer, saveDb } from '@/lib/client/store';
 import { careerKey, groupCareers, type Career } from '@/lib/career/merge';
 import { useEa } from './names';
 import { Header, type Page } from './Header';
@@ -12,6 +12,8 @@ import { SquadPage } from '../squad/SquadPage';
 import { YouthPage } from '../squad/YouthPage';
 import { TrophiesPage } from '../squad/TrophiesPage';
 import { DrawerRegistry, HubContext } from '../drawer/kit';
+import { PlayerPage } from '../player/PlayerPage';
+import type { PlayerDb } from '@/lib/career/playerdb';
 import { drawerRegistry } from '../drawer/registry';
 
 
@@ -86,6 +88,8 @@ export function Home() {
   const [error, setError] = useState<string>();
   const [section, setSection] = useState<Section>('geral');
   const [page, setPage] = useState<Page>('inicio');
+  const [playerId, setPlayerId] = useState<number>();
+  const [db, setDb] = useState<PlayerDb | null>(null);
 
   const [sel, setSel] = useState<string>();
   useEffect(() => {
@@ -95,18 +99,20 @@ export function Home() {
   const careers = useMemo(() => groupCareers(snaps ?? []), [snaps]);
   const career = careers.find((c) => c.key === sel) ?? careers[0];
   const s = career?.view;
+  useEffect(() => { setDb(null); if (career) loadDb(career.key).then((d) => setDb(d ?? null)); }, [career?.key]);
   const choose = (k: string) => { setSel(k); try { localStorage.setItem('fc27:career', k); } catch { /* ok */ } };
 
   async function onFile(f: File) {
     setBusy(true); setError(undefined);
     try {
-      const snap = await parseInWorker(await f.arrayBuffer());
+      const { snapshot: snap, db } = await parseInWorker(await f.arrayBuffer());
+      await saveDb(snap, db); if (db) setDb(db);
       setSnaps(await addSnapshot(snap)); setUploading(false); choose(careerKey(snap));
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   }
 
-  const ids = useMemo(() => (s ? [...new Set([...s.squad.map((p) => p.id), ...s.transfers.map((t) => t.playerId), ...s.youth.map((y) => y.id), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.playerId)), ...(s.worldTransfers ?? []).map((t) => t.playerId), ...(s.tactic?.cornerSupport ?? []), ...(s.loans ?? []).map((l) => l.playerId), ...newsPlayers(s)])] : []), [s]);
+  const ids = useMemo(() => (s ? [...new Set([...s.squad.map((p) => p.id), ...s.transfers.map((t) => t.playerId), ...s.youth.map((y) => y.id), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.playerId)), ...(s.worldTransfers ?? []).map((t) => t.playerId), ...(s.tactic?.cornerSupport ?? []), ...(s.loans ?? []).map((l) => l.playerId), ...newsPlayers(s), ...(playerId != null ? [playerId] : [])])] : []), [s, playerId]);
   const teamIds = useMemo(() => (s ? [...new Set([s.club.id, ...s.standings.flatMap((t) => t.rows.map((r) => r.teamId)),
     ...s.matches.flatMap((m) => [m.homeId, m.awayId]).filter((x): x is number => x != null),
     ...s.transfers.flatMap((t) => [t.fromId, t.toId]), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.teamId)), ...(s.worldTransfers ?? []).flatMap((t) => [t.fromId, t.toId]), s.club.rivalId, ...(s.loans ?? []).map((l) => l.clubId), ...(s.preseason ?? []).flatMap((t) => t.teams.map((x) => x.id)), ...(s.awardsRace ?? []).map((x) => x.teamId), ...(s.leagueRivals ?? []).map((x) => x.teamId), ...[...(s.news ?? []), ...(s.emails ?? [])].flatMap((x) => (x.teams ?? []).map((t) => t.id))])] : []), [s]);
@@ -117,7 +123,7 @@ export function Home() {
 
   const registry = drawerRegistry(s, ea, career);
   return (
-    <HubContext.Provider value={{ season: s.season }}>
+    <HubContext.Provider value={{ season: s.season, openPlayer: setPlayerId }}>
     <DrawerRegistry.Provider value={registry}>
     <main className="mx-auto max-w-[1280px] space-y-6 px-4 pb-14 pt-4 md:px-6">
       <Header s={s} ea={ea} onUpload={() => setUploading(true)} careers={careers} current={career!} onChoose={choose} page={page} setPage={setPage}
@@ -151,6 +157,7 @@ export function Home() {
         </div>
       )}
     </main>
+    {playerId != null && <PlayerPage s={s} ea={ea} db={db} id={playerId} onBack={() => setPlayerId(undefined)} />}
     </DrawerRegistry.Provider>
     </HubContext.Provider>
   );

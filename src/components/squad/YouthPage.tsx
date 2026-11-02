@@ -2,7 +2,7 @@
 import { Fragment, useState } from 'react';
 import type { CareerSnapshot, YouthPlayer } from '@/lib/career/snapshot';
 import { lineOf, posLabel } from '@/lib/career/positions';
-import { Ovr, Pic, money } from '../home/ui';
+import { Ovr, Pic, money, PN } from '../home/ui';
 import type { Ea } from '../home/names';
 import { GROUPS, KPI, SORTS, type SortKey } from './SquadPage';
 
@@ -83,7 +83,7 @@ function YouthTable({ s, ea, sort, setSort, open, toggle }: P & { sort: SortKey;
                           <span className="flex items-center gap-2">
                             <Pic src={ea.player(p.id).avatar} name={ea.player(p.id).name} size={28} />
                             <span className="min-w-0">
-                              <span className="block font-semibold">{ea.player(p.id).short}</span>
+                              <span className="block font-semibold"><PN id={p.id} ea={ea} /></span>
                               {!!p.altPos?.length && <span className="block text-[11px] text-muted">Também {p.altPos.map(posLabel).join(' · ')}</span>}
                             </span>
                           </span>
@@ -129,7 +129,7 @@ function YouthCards({ s, ea, sort }: P & { sort: SortKey }) {
         <div key={p.id} className="rounded-lg border border-line bg-card p-3 text-center">
           <div className="flex items-center justify-between"><Ovr v={p.ovr} /><span className="text-xs font-semibold text-muted">{posLabel(p.pos)}</span><Ovr v={p.pot} /></div>
           <div className="my-2 flex justify-center"><Pic src={ea.player(p.id).avatar} name={ea.player(p.id).name} size={56} /></div>
-          <div className="truncate font-semibold">{ea.player(p.id).short}</div>
+          <div className="truncate font-semibold"><PN id={p.id} ea={ea} /></div>
           <div className="mt-1 flex justify-between text-[10px] text-muted"><span>{p.age} anos</span><Growth p={p} /><span>{p.value != null ? money(p.value) : '—'}</span></div>
         </div>
       ))}
@@ -156,7 +156,7 @@ export function YouthPage({ s, ea }: P) {
         <KPI label="Idade média" value={n ? (y.reduce((a, p) => a + p.age, 0) / n).toFixed(1).replace('.', ',') : '—'} />
         <KPI label="Valor" value={value ? money(value) : '—'} />
         <KPI label="Salários/sem" value={wages ? money(wages) : '—'} />
-        <KPI label="Maior potencial" value={best ? <span className="flex items-center gap-1.5"><Ovr v={best.pot} /><span className="text-sm">{ea.player(best.id).short}</span></span> : '—'} />
+        <KPI label="Maior potencial" value={best ? <span className="flex items-center gap-1.5"><Ovr v={best.pot} /><span className="text-sm"><PN id={best.id} ea={ea} /></span></span> : '—'} />
         <KPI label="Nível da base" value={`${s.club.youthDevelopment}/10`} />
       </div>
       {n === 0 ? <p className="rounded-lg border border-line bg-card p-6 text-center text-sm text-muted">Base vazia. Mande um olheiro buscar jovens e promova os relatórios para a base.</p> : <>

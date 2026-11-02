@@ -2,7 +2,7 @@
 import { Fragment, useMemo, useState } from 'react';
 import type { CareerSnapshot, SquadPlayer, StatLine } from '@/lib/career/snapshot';
 import { posLabel, type Line } from '@/lib/career/positions';
-import { Ovr, Pic, dateBr, money } from '../home/ui';
+import { Ovr, Pic, dateBr, money, PN } from '../home/ui';
 import { StartingXI } from '../home/widgets';
 import type { Ea } from '../home/names';
 
@@ -114,7 +114,7 @@ function SquadTable({ s, ea, sort, setSort, open, toggle }: P & { sort: SortKey;
                           <span className="flex items-center gap-2">
                             <Pic src={ea.player(p.id).avatar} name={ea.player(p.id).name} size={28} />
                             <span className="min-w-0">
-                              <span className="flex items-center gap-1 font-semibold">{ea.player(p.id).short}{p.id === captain && <span className="rounded border border-muted px-1 text-[9px] leading-tight text-muted">C</span>}{p.injured && <span className="text-[11px] text-bad" title="Lesionado">✚</span>}</span>
+                              <span className="flex items-center gap-1 font-semibold"><PN id={p.id} ea={ea} />{p.id === captain && <span className="rounded border border-muted px-1 text-[9px] leading-tight text-muted">C</span>}{p.injured && <span className="text-[11px] text-bad" title="Lesionado">✚</span>}</span>
                               {(p.altPos.length > 0 || t) && <span className="block text-[11px] text-muted">{p.altPos.length > 0 && `Também ${p.altPos.map(posLabel).join(' · ')}`}{t && <span className="ml-1 text-accent">{t.join(' ')}</span>}</span>}
                             </span>
                           </span>
@@ -153,7 +153,7 @@ function LoanedOut({ s, ea, cols }: P & { cols: number }) {
       {out.map((l) => (
         <tr key={l.playerId} className="border-t border-line">
           <td className="px-2 py-1.5 text-muted">—</td>
-          <td className="px-2 py-1.5"><span className="flex items-center gap-2"><Pic src={ea.player(l.playerId).avatar} name={ea.player(l.playerId).name} size={28} /><span><span className="block font-semibold">{ea.player(l.playerId).short}</span><span className="block text-[11px] text-muted">No {l.clubName} até {dateBr(l.until)}</span></span></span></td>
+          <td className="px-2 py-1.5"><span className="flex items-center gap-2"><Pic src={ea.player(l.playerId).avatar} name={ea.player(l.playerId).name} size={28} /><span><span className="block font-semibold"><PN id={l.playerId} ea={ea} /></span><span className="block text-[11px] text-muted">No {l.clubName} até {dateBr(l.until)}</span></span></span></td>
           <td className="px-2 py-1.5 font-semibold">{posLabel(l.pos)}</td>
           <td className="px-2 py-1.5 text-xs text-muted">Emprestado</td>
           <td className="px-2 py-1.5 text-right tabular-nums">{l.age || '—'}</td>
@@ -180,7 +180,7 @@ function SquadCards({ s, ea, sort }: P & { sort: SortKey }) {
                   <div className="flex items-center justify-between"><Ovr v={p.ovr} /><span className="text-xs font-semibold text-muted">{posLabel(p.pos)}</span><Ovr v={p.pot} /></div>
                   <div className="my-2 flex justify-center"><Pic src={ea.player(p.id).avatar} name={ea.player(p.id).name} size={56} /></div>
                   <div className="text-[11px] text-muted">#{p.jersey || '—'}</div>
-                  <div className="truncate font-semibold">{ea.player(p.id).short}</div>
+                  <div className="truncate font-semibold"><PN id={p.id} ea={ea} /></div>
                   <div className="mt-1 flex justify-between text-[10px] text-muted"><span>{p.age} anos</span><span>{p.value != null ? money(p.value) : '—'}</span><span>{money(p.wage)}</span></div>
                 </div>
               ))}
@@ -205,7 +205,7 @@ function SetPiecesBox({ s, ea }: P) {
         <li key={label} className="flex items-center gap-2 border-t border-line py-1.5 text-sm first:border-0">
           <span className="w-24 shrink-0 text-[11px] uppercase text-muted">{label}</span>
           <Pic src={ea.player(id).avatar} name={ea.player(id).name} size={22} />
-          <span className="truncate font-semibold">{ea.player(id).short}</span>
+          <span className="truncate font-semibold"><PN id={id} ea={ea} /></span>
           {byId.get(id) && <span className="ml-auto"><Ovr v={byId.get(id)!.ovr} /></span>}
         </li>
       ))}</ul>
