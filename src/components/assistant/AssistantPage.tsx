@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CareerSnapshot } from '@/lib/career/snapshot';
 import type { PlayerDb } from '@/lib/career/playerdb';
 import { buildContext } from '@/lib/ai/context';
+import { tabsToTables } from '@/lib/ai/markdown';
 import type { AiMessage, AiResponse } from '../../../app/api/ai/route';
 import type { Ea } from '../home/names';
 import { useEaMeta } from '../home/names';
@@ -10,7 +11,8 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 /** Aba Auxiliar: chat com IA que usa o save como contexto (táticas, negociações, gestão). */
-type Msg = AiMessage & { provider?: string; error?: boolean };
+type Msg = AiMessage & { provider?: string; error?: boolean; truncated?: boolean };
+const CONTINUE = 'Continue exatamente de onde a sua última resposta parou, sem repetir nada do que já escreveu.';
 
 const QUICK = [
   { label: 'Tática para o próximo jogo', text: 'Monte a melhor tática para o próximo jogo: formação, titulares, funções (Roles) e instruções de equipe. Leve em conta forma, condição física, lesões e o adversário.' },
@@ -58,7 +60,7 @@ const MD: Components = {
   code: ({ children }) => <code className="rounded bg-[#1d1d20] px-1 py-0.5 text-[12px]">{children}</code>,
 };
 function Rich({ text }: { text: string }) {
-  return <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD}>{text}</ReactMarkdown>;
+  return <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD}>{tabsToTables(text)}</ReactMarkdown>;
 }
 
 export function AssistantPage({ s, ea, db, careerKey }: { s: CareerSnapshot; ea: Ea; db: PlayerDb | null; careerKey: string }) {
@@ -82,17 +84,21 @@ export function AssistantPage({ s, ea, db, careerKey }: { s: CareerSnapshot; ea:
   }, [msgs, store]);
   useEffect(() => { fetch('/api/ai').then((r) => r.json()).then(setKeys).catch(() => setKeys({ gemini: false, groq: false })); }, []);
 
-  async function send(text: string) {
-    if (busy || (!text.trim() && !images.length)) return;
-    const next: Msg[] = [...msgs, { role: 'user', content: text.trim() || 'Analise este print.', images: images.length ? images : undefined }];
-    setMsgs(next); setInput(''); setImages([]); setBusy(true);
+  async function send(text: string, cont = false) {
+    if (busy || (!cont && !text.trim() && !images.length)) return;
+    // "Continuar" manda o pedido de continuação sem mostrar no chat e junta o texto à resposta cortada.
+    const shown: Msg[] = cont ? msgs.map((m, i) => (i === msgs.length - 1 ? { ...m, truncated: false } : m))
+      : [...msgs, { role: 'user', content: text.trim() || 'Analise este print.', images: images.length ? images : undefined }];
+    const wire = cont ? [...shown, { role: 'user' as const, content: CONTINUE }] : shown;
+    setMsgs(shown); if (!cont) { setInput(''); setImages([]); } setBusy(true);
+    const put = (m: Msg) => setMsgs(cont && !m.error ? shown.map((x, i) => (i === shown.length - 1 ? { ...x, content: `${x.content}${m.content}`, truncated: m.truncated, provider: m.provider } : x)) : [...shown, m]);
     try {
-      const r = await fetch('/api/ai', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ context, messages: next.filter((m) => !m.error).map(({ role, content, images }) => ({ role, content, images })) }) });
+      const r = await fetch('/api/ai', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ context, messages: wire.filter((m) => !m.error).map(({ role, content, images }) => ({ role, content, images })) }) });
       const d = (await r.json().catch(() => ({ error: r.status === 504 ? 'A resposta demorou demais. Tente uma pergunta mais curta ou de novo em instantes.' : `Erro do servidor (${r.status}).` }))) as AiResponse;
-      if (d.text) setMsgs([...next, { role: 'assistant', content: d.text, provider: d.provider }]);
-      else setMsgs([...next, { role: 'assistant', error: true, content: d.error === 'sem-chaves' ? 'As chaves do Gemini e do Groq ainda não foram configuradas na Vercel.' : d.error ?? 'Não consegui responder agora.' }]);
+      if (d.text) put({ role: 'assistant', content: d.text, provider: d.provider, truncated: d.truncated });
+      else put({ role: 'assistant', error: true, content: d.error === 'sem-chaves' ? 'As chaves do Gemini e do Groq ainda não foram configuradas na Vercel.' : d.error ?? 'Não consegui responder agora.' });
     } catch {
-      setMsgs([...next, { role: 'assistant', error: true, content: 'Sem conexão com o servidor. Tente de novo.' }]);
+      put({ role: 'assistant', error: true, content: 'Sem conexão com o servidor. Tente de novo.' });
     } finally { setBusy(false); }
   }
 
@@ -130,6 +136,12 @@ export function AssistantPage({ s, ea, db, careerKey }: { s: CareerSnapshot; ea:
             <div key={i} className={m.role === 'user' ? 'ml-auto max-w-[80%] rounded-lg bg-[#2a2a4a] px-3.5 py-2' : `rounded-lg border border-line bg-[#1a1a1d] px-4 py-3 ${m.error ? 'text-bad' : 'text-[#d6d6dc]'}`}>
               {m.images?.length ? <div className="mb-1.5 flex gap-1.5">{m.images.map((u, k) => <img key={k} src={u} alt="" className="h-20 rounded" />)}</div> : null}
               {m.role === 'user' ? <p className="whitespace-pre-wrap">{m.content}</p> : <Rich text={m.content} />}
+              {m.truncated && i === msgs.length - 1 && (
+                <div className="mt-2 flex items-center gap-3 rounded-md border border-[#eab308]/40 bg-[#eab308]/10 px-3 py-2 text-xs text-[#eab308]">
+                  A resposta foi cortada pelo limite de tamanho.
+                  <button onClick={() => send('', true)} disabled={busy} className="ml-auto rounded bg-[#eab308] px-2.5 py-1 font-semibold text-black disabled:opacity-50">Continuar</button>
+                </div>
+              )}
               {m.provider && <p className="mt-1 text-[10px] uppercase tracking-wide text-muted">{m.provider === 'gemini' ? 'Gemini' : 'Groq (reserva)'}</p>}
             </div>
           ))}
