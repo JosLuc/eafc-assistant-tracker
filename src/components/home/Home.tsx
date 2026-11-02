@@ -64,6 +64,7 @@ const WIDGETS: { id: string; sections: Section[]; C: (p: { s: CareerSnapshot; ea
   { id: 'financas', sections: ['clube'], C: W.ClubFinances },
   { id: 'comissao', sections: ['clube'], C: W2.CoachingStaff },
   { id: 'cv', sections: ['tecnico'], C: W.ManagerCV },
+  { id: 'objetivos', sections: ['geral', 'tecnico'], C: W2.BoardObjectives },
   { id: 'cargo', sections: ['tecnico'], C: W.JobSecurity },
   { id: 'emails', sections: ['tecnico'], C: W2.Inbox },
   { id: 'historico', sections: ['tecnico'], C: W.SeasonHistory, wide: true },

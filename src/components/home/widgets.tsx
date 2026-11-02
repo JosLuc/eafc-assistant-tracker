@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { leagueObjective, securityLevel } from '@/lib/career/objectives';
 import type { CareerSnapshot, SquadPlayer, StatLine } from '@/lib/career/snapshot';
 import { buildTips, starters } from '@/lib/career/tips';
 import { fromYmd, seasonOf } from '@/lib/career/dates';
@@ -725,7 +726,6 @@ export function GoldenBoot({ s, ea }: P) {
   );
 }
 
-const OBJECTIVE: Record<number, string> = { 0: 'Ser campeão da liga', 6: 'Conseguir o acesso direto' };
 
 const MANAGER_AWARD: Record<number, string> = { 0: 'Técnico do mês' };
 const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -757,8 +757,7 @@ export function ManagerCV({ s }: P) {
 export function JobSecurity({ s }: P) {
   const v = s.manager?.jobSecurity;
   if (v == null) return <Card title="Segurança no cargo" empty="Este save não trouxe a segurança no cargo." />;
-  const color = v >= 60 ? '#22c55e' : v >= 35 ? '#eab308' : '#ef4444';
-  const label = v >= 60 ? 'SEGURO' : v >= 35 ? 'ATENÇÃO' : 'EM RISCO';
+  const { color, label } = securityLevel(v);
   const a = Math.PI * (1 - v / 100);
   return (
     <Card title="Segurança no cargo" help="Confiança da diretoria no seu trabalho (0 a 100). Abaixo de 35 o risco de demissão é alto.">
@@ -786,7 +785,7 @@ export function SeasonHistory({ s }: P) {
           <tbody>{h.map((x, i) => (
             <tr key={i} className="border-t border-line">
               <td className="py-1.5 font-semibold">{x.teamName}</td><td className="text-muted">{x.league}</td>
-              <td className="text-center">{x.position || '—'}</td><td className="text-xs">{OBJECTIVE[x.objective] ?? 'Objetivo da diretoria'}</td>
+              <td className="text-center">{x.position || '—'}</td><td className="text-xs">{leagueObjective(x.objective)}</td>
               <td className="text-center">{x.won}-{x.drawn}-{x.lost}</td><td className="text-center">{x.played}</td>
               <td className="text-center">{x.points}</td><td className="text-center">{x.goalsFor}-{x.goalsAgainst}</td>
             </tr>
