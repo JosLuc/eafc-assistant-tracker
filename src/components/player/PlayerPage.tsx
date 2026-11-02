@@ -6,7 +6,8 @@ import { PITCH, positionRatings } from '@/lib/career/posRatings';
 import { fromGameDays, toYmd } from '@/lib/career/dates';
 import { posLabel } from '@/lib/career/positions';
 import { Ovr, Pic, dateBr, money, ratingColor } from '../home/ui';
-import type { Ea } from '../home/names';
+import { useEaMeta, type Ea } from '../home/names';
+import { abilityKeys } from '@/lib/career/playstyles';
 
 /**
  * Página do jogador (abre ao clicar num nome): ficha, radar, nota por posição, atributos,
@@ -48,6 +49,7 @@ function Tile({ title, children, className = '' }: { title: string; children: Re
 }
 
 export function PlayerPage({ s, ea, db, id, onBack }: P) {
+  const meta = useEaMeta();
   useEffect(() => {
     // Captura antes da gaveta: Esc fecha só a página do jogador e volta para a gaveta aberta.
     const on = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopImmediatePropagation(); onBack(); } };
@@ -56,6 +58,9 @@ export function PlayerPage({ s, ea, db, id, onBack }: P) {
     return () => { window.removeEventListener('keydown', on, true); document.body.style.overflow = prev; };
   }, [onBack]);
   const r = db ? dbRow(db, id) : null;
+  const nation = r && meta ? meta.nations[r.nationality] : undefined;
+  // PlayStyle+ primeiro; bits sem nome na base da EA ficam de fora.
+  const styles = r && meta ? abilityKeys(r).map((key) => ({ key, ...meta.abilities[key]! })).filter((x) => x.label).sort((a, b) => Number(b.plus) - Number(a.plus)) : [];
   const sq = s.squad.find((p) => p.id === id);
   const youth = s.youth.find((y) => y.id === id);
   const p = ea.player(id);
@@ -137,7 +142,18 @@ export function PlayerPage({ s, ea, db, id, onBack }: P) {
               <Fact label="Dribles">{r ? <span className="text-accent">{stars(r.skillmoves + 1)}</span> : '—'}</Fact>
               <Fact label="Crescimento">{pot - ovr > 0 ? `+${pot - ovr}` : '0'}</Fact>
               <Fact label="Aposentando">{r ? (r.isretiring ? 'Sim' : 'Não') : '—'}</Fact>
+              <Fact label="Nacionalidade">{nation ? <span className="flex items-center gap-1.5">{nation.flag && <img src={nation.flag} alt="" className="h-3.5 w-5 rounded-[2px] object-cover" />}<span className="truncate">{nation.label}</span></span> : '—'}</Fact>
             </div>
+            {styles.length > 0 && (
+              <div className="mt-4">
+                <div className="label mb-2">PlayStyles · {styles.length}</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {styles.map((x) => (
+                    <span key={x.key} title={x.desc} className={`rounded-md px-2.5 py-1 text-[12px] font-semibold ${x.plus ? 'bg-[#ffd200] text-[#111]' : 'border border-line bg-[#232323]'}`}>{x.label}</span>
+                  ))}
+                </div>
+              </div>
+            )}
           </section>
 
           {attrs && (

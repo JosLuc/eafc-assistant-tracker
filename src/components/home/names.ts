@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import type { EaLookup, EaPlayer } from '../../../app/api/ea/route';
+import type { EaLookup, EaMeta, EaPlayer } from '../../../app/api/ea/route';
 
 /** Busca nomes, fotos e escudos na API da EA (via nosso servidor). Sem resposta, mostra "Jogador #id". */
 export function useEa(ids: number[], teamIds: number[], saveNames: Record<number, string> = {}) {
@@ -23,3 +23,20 @@ export function useEa(ids: number[], teamIds: number[], saveNames: Record<number
   return { player, crest: (id: number) => data?.crests[id], loading: !data, available: data?.available ?? true };
 }
 export type Ea = ReturnType<typeof useEa>;
+
+const META_KEY = 'fc27:eameta';
+/** Nomes dos PlayStyles e dos países (da base da EA), guardados no navegador por 7 dias. */
+export function useEaMeta(): EaMeta | null {
+  const [m, setM] = useState<EaMeta | null>(null);
+  useEffect(() => {
+    try {
+      const c = JSON.parse(localStorage.getItem(META_KEY) ?? 'null') as { at: number; m: EaMeta } | null;
+      if (c && Date.now() - c.at < 7 * 864e5 && c.m.available) { setM(c.m); return; }
+    } catch { /* sem cache */ }
+    fetch('/api/ea?meta=1').then((r) => r.json()).then((d: EaMeta) => {
+      setM(d);
+      if (d.available) try { localStorage.setItem(META_KEY, JSON.stringify({ at: Date.now(), m: d })); } catch { /* ok */ }
+    }).catch(() => setM({ abilities: {}, nations: {}, available: false }));
+  }, []);
+  return m;
+}

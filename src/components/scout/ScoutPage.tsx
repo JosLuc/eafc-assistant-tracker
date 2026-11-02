@@ -4,7 +4,7 @@ import type { CareerSnapshot } from '@/lib/career/snapshot';
 import type { PlayerDb } from '@/lib/career/playerdb';
 import { POS, posLabel } from '@/lib/career/positions';
 import { EMPTY, RANGE, RANGES, activeCount, derive, rangeValue, runScout, type Group, type ScoutFilter } from '@/lib/career/scout';
-import { useEa } from '../home/names';
+import { useEa, useEaMeta } from '../home/names';
 import { Ovr, Pic, money } from '../home/ui';
 import { useHub } from '../drawer/kit';
 
@@ -26,6 +26,7 @@ const norm = (x: string) => x.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCa
 export function ScoutPage({ s, db }: P) {
   const { openPlayer } = useHub();
   const d = useMemo(() => (db ? derive(db) : null), [db]);
+  const meta = useEaMeta();
   const [f, setF] = useState<ScoutFilter>(EMPTY);
   const [q, setQ] = useState('');
   const [nameIds, setNameIds] = useState<Set<number> | null>(null);
@@ -108,6 +109,10 @@ export function ScoutPage({ s, db }: P) {
   const teams = Object.entries(db.teams).filter(([id]) => f.league == null || db.leagueOfTeam[Number(id)] === f.league).sort((a, b) => a[1].localeCompare(b[1]));
   const match = (label: string) => !find || norm(label).includes(norm(find));
 
+  const usedNations = new Set(db.cols.nationality);
+  const nations: [number, string][] = Object.entries(meta?.nations ?? {}).filter(([id]) => usedNations.has(Number(id))).map(([id, n]): [number, string] => [Number(id), n.label]).sort((a, b) => a[1].localeCompare(b[1]));
+  // PlayStyle+ por último, depois dos normais, cada grupo em ordem alfabética.
+  const styleOpts = Object.entries(meta?.abilities ?? {}).sort((a, b) => Number(a[1].plus) - Number(b[1].plus) || a[1].label.localeCompare(b[1].label));
   const chips: { label: string; clear: () => void }[] = [];
   for (const [k, [a, b]] of Object.entries(f.ranges)) {
     if (a == null && b == null) continue;
@@ -121,6 +126,8 @@ export function ScoutPage({ s, db }: P) {
   if (f.retiring != null) chips.push({ label: f.retiring ? 'Aposentando' : 'Não aposenta', clear: () => set({ retiring: null }) });
   if (f.free) chips.push({ label: 'Agentes livres', clear: () => set({ free: false }) });
   if (f.generated) chips.push({ label: 'Jogadores gerados', clear: () => set({ generated: false }) });
+  if (f.nation != null) chips.push({ label: `País: ${meta?.nations[f.nation]?.label ?? f.nation}`, clear: () => set({ nation: null }) });
+  if (f.styles?.length) chips.push({ label: `PlayStyles: ${f.styles.map((k) => meta?.abilities[k]?.label ?? k).join(f.stylesMode === 'and' ? ' e ' : ' ou ')}`, clear: () => set({ styles: [] }) });
 
   const csv = () => {
     const head = ['Jogador', 'Posições', 'Clube', ...shown.map((c) => c.title)];
@@ -175,7 +182,7 @@ export function ScoutPage({ s, db }: P) {
               {saved.length === 0 && <p className="px-1 py-1 text-muted">Nenhum filtro salvo ainda.</p>}
               {saved.map((x, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <button onClick={() => { setF(x.f); setPage(0); setSavedMenu(false); }} className="flex-1 truncate rounded px-2 py-1 text-left hover:bg-[#232323]">{x.name}</button>
+                  <button onClick={() => { setF({ ...EMPTY, ...x.f }); setPage(0); setSavedMenu(false); }} className="flex-1 truncate rounded px-2 py-1 text-left hover:bg-[#232323]">{x.name}</button>
                   <button aria-label="Apagar" onClick={() => { const n = saved.filter((_, j) => j !== i); setSaved(n); save('fc27:scout:saved', n); }} className="px-1 text-faint hover:text-bad">✕</button>
                 </div>
               ))}
@@ -207,6 +214,26 @@ export function ScoutPage({ s, db }: P) {
             <Sel label="Clube" value={f.team} onChange={(v) => set({ team: v })} options={teams} />
             <Sel label="Pé preferido" value={f.foot} onChange={(v) => set({ foot: v })} options={[[1, 'Direito'], [2, 'Esquerdo']]} />
             <Sel label="Aposentando" value={f.retiring} onChange={(v) => set({ retiring: v })} options={[[1, 'Sim'], [0, 'Não']]} />
+            <Sel label="Nacionalidade" value={f.nation} onChange={(v) => set({ nation: v })} options={nations} />
+            {match('PlayStyles') && styleOpts.length > 0 && (
+              <div>
+                <div className="mb-1 flex items-center justify-between text-[12px] text-muted">
+                  <span>PlayStyles</span>
+                  <span className="flex gap-1">
+                    {(['or', 'and'] as const).map((x) => <button key={x} onClick={() => set({ stylesMode: x })} className={`rounded px-1.5 py-0.5 ${f.stylesMode === x ? 'bg-accent text-white' : 'border border-line'}`}>{x === 'or' ? 'Ou' : 'E'}</button>)}
+                  </span>
+                </div>
+                <select value="" onChange={(e) => e.target.value && set({ styles: [...new Set([...(f.styles ?? []), e.target.value])] })} className="w-full rounded-md border border-line bg-[#191919] px-2.5 py-2 text-[13px]">
+                  <option value="">Adicionar PlayStyle</option>
+                  {styleOpts.map(([k, a]) => <option key={k} value={k}>{a.label}</option>)}
+                </select>
+                {(f.styles ?? []).length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {f.styles.map((k) => <button key={k} onClick={() => set({ styles: f.styles.filter((x) => x !== k) })} className={`rounded px-2 py-0.5 text-[11px] font-semibold ${meta?.abilities[k]?.plus ? 'bg-[#ffd200] text-[#111]' : 'bg-accent text-white'}`}>{meta?.abilities[k]?.label ?? k} ✕</button>)}
+                  </div>
+                )}
+              </div>
+            )}
             {match('Posições') && (
               <div>
                 <div className="mb-1 flex items-center justify-between text-[12px] text-muted">
@@ -301,6 +328,7 @@ export function ScoutPage({ s, db }: P) {
                         <span className="min-w-0">
                           <button onClick={() => openPlayer?.(id)} className={`block truncate text-left font-semibold hover:text-link hover:underline ${team === s.club.id ? 'text-link' : ''}`}>{p.name}</button>
                           <span className="flex items-center gap-1.5 text-[11px] text-muted">
+                            {meta?.nations[db.cols.nationality![i]!]?.flag && <img src={meta.nations[db.cols.nationality![i]!]!.flag} alt="" title={meta.nations[db.cols.nationality![i]!]!.label} className="h-2.5 w-3.5 rounded-[1px] object-cover" />}
                             <Pic src={ea.crest(team)} name={db.teams[team] ?? '?'} size={14} round={false} />
                             <span className="font-semibold text-white">{posLabel(ps[0]!)}</span>{ps.slice(1).map((x) => <span key={x}>{posLabel(x)}</span>)}
                           </span>

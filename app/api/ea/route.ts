@@ -12,7 +12,11 @@ const WEEK = 60 * 60 * 24 * 7;
 interface EaItem {
   id: number; firstName: string; lastName: string; commonName: string | null; avatarUrl: string;
   team?: { id: number; label: string; imageUrl: string };
+  nationality?: { id: number; label: string; imageUrl: string };
+  playerAbilities?: { id: string; label: string; description?: string; type?: { id: string } }[];
 }
+/** Nomes que o save não tem: PlayStyles (id = "trait1_64", o bit no save) e países (id do save). */
+export interface EaMeta { abilities: Record<string, { label: string; desc: string; plus: boolean }>; nations: Record<number, { label: string; flag: string }>; available: boolean }
 export interface EaPlayer { name: string; short: string; avatar: string }
 export interface EaLookup { players: Record<number, EaPlayer>; crests: Record<number, string>; available: boolean }
 
@@ -45,6 +49,7 @@ export async function GET(req: Request) {
   const q = new URL(req.url).searchParams;
   // Busca por nome (Scout): /api/ea?q=bruno → { ids } de quem tem o nome parecido.
   if (q.get('q')) return search(q.get('q')!);
+  if (q.get('meta')) return meta();
   const list = (k: string) => (q.get(k) ?? '').split(',').map(Number).filter(Boolean);
   return lookup(list('ids'), list('teams'));
 }
@@ -83,5 +88,22 @@ async function search(text: string) {
     return NextResponse.json({ ids, available: true });
   } catch {
     return NextResponse.json({ ids: [], available: false });
+  }
+}
+
+async function meta() {
+  try {
+    index ??= loadIndex().catch((e) => { index = null; throw e; });
+    const map = await index;
+    const out: EaMeta = { abilities: {}, nations: {}, available: true };
+    for (const it of map.values()) {
+      if (it.nationality && !out.nations[it.nationality.id]) out.nations[it.nationality.id] = { label: it.nationality.label, flag: it.nationality.imageUrl };
+      for (const a of it.playerAbilities ?? []) {
+        if (!out.abilities[a.id]) out.abilities[a.id] = { label: a.label, desc: a.description ?? '', plus: a.type?.id === 'playStylePlus' };
+      }
+    }
+    return NextResponse.json(out, { headers: { 'Cache-Control': `public, s-maxage=${WEEK}` } });
+  } catch {
+    return NextResponse.json({ abilities: {}, nations: {}, available: false } satisfies EaMeta);
   }
 }
