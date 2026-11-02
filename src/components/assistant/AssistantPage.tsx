@@ -6,6 +6,8 @@ import { buildContext } from '@/lib/ai/context';
 import type { AiMessage, AiResponse } from '../../../app/api/ai/route';
 import type { Ea } from '../home/names';
 import { useEaMeta } from '../home/names';
+import ReactMarkdown, { type Components } from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 /** Aba Auxiliar: chat com IA que usa o save como contexto (táticas, negociações, gestão). */
 type Msg = AiMessage & { provider?: string; error?: boolean };
@@ -36,22 +38,27 @@ function shrink(file: File): Promise<string> {
   });
 }
 
-/** Markdown simples: negrito, listas e parágrafos. */
+/** Resposta em Markdown (títulos, listas, tabelas) com o visual do app. */
+const MD: Components = {
+  h1: ({ children }) => <h3 className="title mb-2 mt-4 text-[15px] text-white first:mt-0">{children}</h3>,
+  h2: ({ children }) => <h3 className="title mb-2 mt-4 text-[15px] text-white first:mt-0">{children}</h3>,
+  h3: ({ children }) => <h3 className="title mb-2 mt-4 border-b border-line pb-1 text-[14px] text-white first:mt-0">{children}</h3>,
+  h4: ({ children }) => <h4 className="mb-1 mt-3 font-semibold text-white">{children}</h4>,
+  p: ({ children }) => <p className="my-1.5">{children}</p>,
+  strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+  ul: ({ children }) => <ul className="my-1.5 list-disc space-y-1 pl-5 marker:text-muted">{children}</ul>,
+  ol: ({ children }) => <ol className="my-1.5 list-decimal space-y-1 pl-5 marker:text-muted">{children}</ol>,
+  table: ({ children }) => <div className="my-2 overflow-x-auto rounded-md border border-line"><table className="w-full text-[13px] tabular-nums">{children}</table></div>,
+  thead: ({ children }) => <thead className="bg-[#1d1d20] text-[11px] uppercase tracking-wide text-muted">{children}</thead>,
+  th: ({ children }) => <th className="px-2.5 py-1.5 text-left font-semibold">{children}</th>,
+  tr: ({ children }) => <tr className="border-t border-line first:border-t-0">{children}</tr>,
+  td: ({ children }) => <td className="px-2.5 py-1.5 align-top">{children}</td>,
+  hr: () => <hr className="my-3 border-line" />,
+  blockquote: ({ children }) => <blockquote className="my-2 border-l-2 border-link pl-3 text-muted">{children}</blockquote>,
+  code: ({ children }) => <code className="rounded bg-[#1d1d20] px-1 py-0.5 text-[12px]">{children}</code>,
+};
 function Rich({ text }: { text: string }) {
-  const inline = (t: string) => t.split(/(\*\*[^*]+\*\*)/g).map((x, i) => (x.startsWith('**') ? <strong key={i} className="text-white">{x.slice(2, -2)}</strong> : x));
-  const blocks: React.ReactNode[] = [];
-  let list: string[] = [];
-  const flush = () => { if (list.length) { blocks.push(<ul key={blocks.length} className="my-1 list-disc space-y-0.5 pl-5">{list.map((x, i) => <li key={i}>{inline(x)}</li>)}</ul>); list = []; } };
-  for (const line of text.split('\n')) {
-    const li = /^\s*(?:[-*•]|\d+[.)])\s+(.*)$/.exec(line);
-    if (li) { list.push(li[1]!); continue; }
-    flush();
-    const h = /^#{1,4}\s+(.*)$/.exec(line);
-    if (h) blocks.push(<p key={blocks.length} className="mt-2 font-semibold text-white">{inline(h[1]!)}</p>);
-    else if (line.trim()) blocks.push(<p key={blocks.length} className="my-1">{inline(line)}</p>);
-  }
-  flush();
-  return <>{blocks}</>;
+  return <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD}>{text}</ReactMarkdown>;
 }
 
 export function AssistantPage({ s, ea, db, careerKey }: { s: CareerSnapshot; ea: Ea; db: PlayerDb | null; careerKey: string }) {
@@ -120,7 +127,7 @@ export function AssistantPage({ s, ea, db, careerKey }: { s: CareerSnapshot; ea:
             </div>
           )}
           {msgs.map((m, i) => (
-            <div key={i} className={m.role === 'user' ? 'ml-auto max-w-[80%] rounded-lg bg-[#2a2a4a] px-3.5 py-2' : `max-w-[90%] ${m.error ? 'text-bad' : 'text-[#d6d6dc]'}`}>
+            <div key={i} className={m.role === 'user' ? 'ml-auto max-w-[80%] rounded-lg bg-[#2a2a4a] px-3.5 py-2' : `rounded-lg border border-line bg-[#1a1a1d] px-4 py-3 ${m.error ? 'text-bad' : 'text-[#d6d6dc]'}`}>
               {m.images?.length ? <div className="mb-1.5 flex gap-1.5">{m.images.map((u, k) => <img key={k} src={u} alt="" className="h-20 rounded" />)}</div> : null}
               {m.role === 'user' ? <p className="whitespace-pre-wrap">{m.content}</p> : <Rich text={m.content} />}
               {m.provider && <p className="mt-1 text-[10px] uppercase tracking-wide text-muted">{m.provider === 'gemini' ? 'Gemini' : 'Groq (reserva)'}</p>}
