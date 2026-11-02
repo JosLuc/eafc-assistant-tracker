@@ -967,13 +967,13 @@ export function PreseasonTour({ s, ea }: P) {
   const inTour = (t: (typeof tours)[number]) => t.teams.some((x) => x.id === s.club.id);
   return (
     <Card title="Pré-temporada" help={help}
-      more={() => <div className="space-y-4">{tours.map((t) => (
-        <div key={t.key}><div className="mb-1 font-semibold">{t.name} · prêmio {money(t.prize)}</div>
+      more={() => <div className="space-y-4">{tours.map((t, i) => (
+        <div key={`${t.key}-${i}`}><div className="mb-1 font-semibold">{t.name} · prêmio {money(t.prize)}</div>
           <ul className="grid grid-cols-2 gap-1 text-sm">{t.teams.map((x) => <li key={x.id} className={`flex items-center gap-1 ${x.id === s.club.id ? 'font-semibold text-accent' : ''}`}><Crest id={x.id} name={x.name} ea={ea} size={14} />{x.name}</li>)}</ul></div>
       ))}</div>}>
       <div className="mb-2 text-xs text-muted">{tours.length} {tours.length === 1 ? 'convite' : 'convites'}</div>
-      <ul className="space-y-2">{tours.slice(0, 3).map((t) => (
-        <li key={t.key} className="rounded border border-line p-2 text-sm">
+      <ul className="space-y-2">{tours.slice(0, 3).map((t, i) => (
+        <li key={`${t.key}-${i}`} className="rounded border border-line p-2 text-sm">
           <div className="flex items-center justify-between font-semibold">{t.name}<span className="text-[10px] font-normal uppercase text-muted">{inTour(t) ? 'a decidir' : ''}</span></div>
           <div className="flex justify-between text-xs text-muted"><span>Times</span><b className="text-white">{t.teams.length}</b></div>
           <div className="flex justify-between text-xs text-muted"><span>Prêmio</span><b className="text-white">{money(t.prize)}</b></div>

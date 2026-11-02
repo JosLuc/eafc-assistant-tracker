@@ -99,9 +99,13 @@ export interface CareerSnapshot {
   /** Orçamento de transferências de cada clube da IA: [teamid, inicial, atual, orçamento salarial]. */
   budgets: [number, number, number, number][];
   /** Feed de notícias do jogo (chave do texto, parâmetros [tipo, valor], jogadores, data). */
-  news: { key: string; date: number | null; params: [number, number][]; players: number[] }[];
+  news: { key: string; date: number | null; params: [number, number][]; players: number[]; teams?: { id: number; name: string }[] }[];
   /** E-mails da caixa de entrada (diretoria, lesões, base, empréstimos…). */
-  emails: { key: string; date: number | null; params: [number, number][]; players: number[] }[];
+  emails: { key: string; date: number | null; params: [number, number][]; players: number[]; teams?: { id: number; name: string }[] }[];
+  /** Clubes da sua liga: orçamento de transferências (inicial e atual), orçamento salarial e segurança no cargo do técnico. */
+  /** Nome das competições que aparecem na temporada passada do elenco (liga do clube mais comum entre os jogadores). */
+  lastSeasonComps: Record<number, string>;
+  leagueRivals: { teamId: number; name: string; initial: number; current: number; wage: number; security: number | null }[];
   /** Times da semana publicados no feed. */
   teamOfWeek: { date: number | null; players: number[] }[];
   /** Jogadores do mês publicados no feed. */
@@ -225,6 +229,9 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
   const forms = new Map(save.playerForm.map((f) => [f.playerId, f]));
   const dyn = new Map(save.dynamicOvr.map((d) => [d.playerId, d]));
   const prev = new Map(save.seasonStats.map((x) => [x.playerId, x.comps]));
+  const withTeams = <T extends { params: [number, number][] }>(x: T) => ({
+    ...x, teams: [...new Set(x.params.filter(([k, v]) => (k === 15 || k === 16) && v > 0 && v < 999999).map(([, v]) => v))].map((id) => ({ id, name: teamName(id) })),
+  });
   for (const p of squad) {
     p.value = save.playerValues.get(p.id);
     const f = forms.get(p.id);
@@ -338,8 +345,13 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
     careerKey: careerKeyOf(mgr, clubId),
     tactic: readTactic(t, clubId),
     worldTransfers: worldTransfers(save, teamName, players),
-    news: save.social.filter((x) => !x.key.startsWith('CM_SM_')),
-    emails: save.emails,
+    news: save.social.filter((x) => !x.key.startsWith('CM_SM_')).map(withTeams),
+    emails: save.emails.map(withTeams),
+    lastSeasonComps: lastSeasonComps(save, squad, leagueName),
+    leagueRivals: save.budgets.filter((x) => leagueTeams.has(x.teamId) && x.teamId !== clubId).map((x) => ({
+      teamId: x.teamId, name: teamName(x.teamId), initial: x.initial, current: x.current, wage: x.wageBudget,
+      security: save.jobSecurity.find((j) => j.teamId === x.teamId)?.security ?? null,
+    })).sort((a, b) => b.current - a.current),
     teamOfWeek: save.social.filter((x) => x.key.startsWith('CM_Player_Awards') && x.players.length === 11).map((x) => ({ date: x.date, players: x.players })),
     playerOfMonth: save.social.filter((x) => x.key === 'CM_Social_POTM_UM').map((x) => {
       const get = (...types: number[]) => x.params.find(([t]) => types.includes(t))?.[1] ?? 0;
@@ -351,6 +363,28 @@ export function buildSnapshot(save: CareerSave, importedAt = new Date()): Career
     coaches: save.coaches.map((c) => ({ id: c.id, name: `${c.firstName} ${c.lastName}`, birthDate: c.birthDate, nationality: c.nationality, wage: c.wage, role: c.role, level: c.level, ratings: c.ratings, hired: c.hired })),
     preseason: save.preseason.map((x) => ({ key: x.key, name: x.name, prize: x.prize, teams: x.teams.map((id) => ({ id, name: teamName(id) })) })),
   };
+}
+
+/** Nomeia as competições da temporada passada: se quase todos os jogadores daquela competição são de clubes de uma liga, é ela. */
+function lastSeasonComps(save: CareerSave, squad: SquadPlayer[], leagueName: (id: number) => string): Record<number, string> {
+  const want = new Set(squad.flatMap((p) => p.lastSeason?.map((c) => c.competitionId) ?? []));
+  const leagueOf = new Map((save.tables.leagueteamlinks ?? []).map((r) => [num(r, 'teamid'), num(r, 'leagueid')]));
+  const votes = new Map<number, Map<number, number>>();
+  for (const h of save.seasonStats) for (const c of h.comps) {
+    if (!want.has(c.competitionId)) continue;
+    const lg = leagueOf.get(h.clubs[h.clubs.length - 1] ?? -1);
+    if (lg == null) continue;
+    const m = votes.get(c.competitionId) ?? new Map<number, number>();
+    m.set(lg, (m.get(lg) ?? 0) + 1); votes.set(c.competitionId, m);
+  }
+  const out: Record<number, string> = { 135: 'Champions League' };
+  for (const [comp, m] of votes) {
+    if (out[comp]) continue;
+    const total = [...m.values()].reduce((a, b) => a + b, 0);
+    const [lg, n] = [...m].sort((a, b) => b[1] - a[1])[0]!;
+    out[comp] = n / total >= 0.8 ? leagueName(lg) : 'Copa ou outro torneio';
+  }
+  return out;
 }
 
 /**
@@ -387,7 +421,9 @@ function worldTransfers(save: CareerSave, teamName: (id: number) => string, play
     if (num(e, 'eventid') !== 5 || num(e, 'player1id') <= 0) continue;
     add({ date: num(e, 'eventdate'), playerId: num(e, 'player1id'), fromId: num(e, 'team1id'), fromName: teamName(num(e, 'team1id')), toId: num(e, 'team2id'), toName: teamName(num(e, 'team2id')) });
   }
-  return [...out.values()].sort((a, b) => b.date - a.date);
+  // Times internos do jogo (ex.: "Youth Squad [DO NOT USE]", times sem nome) não são transferências de verdade.
+  const real = (name: string) => !/DO NOT USE/i.test(name) && !/^Time \d+$/.test(name);
+  return [...out.values()].filter((x) => real(x.fromName) && real(x.toName)).sort((a, b) => b.date - a.date);
 }
 
 function clubLoans(save: CareerSave, clubId: number, teamName: (id: number) => string, players: Map<number, Row>, today: Date): Loan[] {
