@@ -160,7 +160,7 @@ export function Home() {
         </div>
       )}
     </main>
-    {playerId != null && <PlayerPage s={s} ea={ea} db={db} id={playerId} onBack={() => setPlayerId(undefined)} />}
+    {playerId != null && <PlayerPage s={s} ea={ea} db={db} id={playerId} snaps={career!.snaps} onBack={() => setPlayerId(undefined)} />}
     </DrawerRegistry.Provider>
     </HubContext.Provider>
   );
