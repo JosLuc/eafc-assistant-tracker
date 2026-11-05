@@ -20,6 +20,7 @@ export function drawerRegistry(s: CareerSnapshot, ea: Ea, career?: Career) {
     'Transferências do clube': { title: 'Todas as transferências', render: () => <D.AllTransfersDrawer {...p} /> },
     'Corrida da artilharia': { title: 'Líderes por competição', render: () => <D.LeadersDrawer {...p} /> },
     'Finanças': { title: 'Finanças do clube', render: () => <D.FinancesDrawer {...p} /> },
+    'Troféus': { title: 'Troféus', render: () => <D.SilverwareDrawer {...p} /> },
     'Olheiros': { title: 'Olheiros', render: () => <D.ScoutsDrawer {...p} /> },
   };
 }
