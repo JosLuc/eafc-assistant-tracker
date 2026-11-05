@@ -19,7 +19,7 @@ interface EaItem {
 /** Nomes que o save não tem: PlayStyles (id = "trait1_64", o bit no save) e países (id do save). */
 export interface EaMeta { abilities: Record<string, { label: string; desc: string; plus: boolean }>; nations: Record<number, { label: string; flag: string }>; available: boolean }
 export interface EaPlayer { name: string; short: string; avatar: string; /** 'sofifa' = nome achado no SoFIFA (fora da base da EA). */ src?: 'sofifa' }
-export interface EaLookup { players: Record<number, EaPlayer>; crests: Record<number, string>; available: boolean }
+export interface EaLookup { players: Record<number, EaPlayer>; crests: Record<number, string>; available: boolean; /** Ids fora da base da EA, para o navegador pedir ao SoFIFA aos poucos. */ missing?: number[] }
 
 async function page(offset: number): Promise<{ items: EaItem[]; totalItems: number }> {
   const res = await fetch(BASE + offset, { next: { revalidate: WEEK } });
@@ -41,7 +41,13 @@ async function loadIndex() {
 }
 
 export async function POST(req: Request) {
-  const { ids = [], teamIds = [], noFallback = [] } = (await req.json()) as { ids?: number[]; teamIds?: number[]; noFallback?: number[] };
+  const { ids = [], teamIds = [], noFallback = [], sofifa } = (await req.json()) as { ids?: number[]; teamIds?: number[]; noFallback?: number[]; sofifa?: number[] };
+  if (sofifa) {
+    // Lotes pequenos e separados: cada pedido termina rápido, longe do limite de tempo da função.
+    const players: EaLookup['players'] = {};
+    await fillFromSofifa(sofifa.slice(0, SOFIFA_BATCH), players);
+    return NextResponse.json({ players });
+  }
   return lookup(ids, teamIds, new Set(noFallback));
 }
 
@@ -51,6 +57,7 @@ export async function GET(req: Request) {
   // Busca por nome (Scout): /api/ea?q=bruno → { ids } de quem tem o nome parecido.
   if (q.get('q')) return search(q.get('q')!);
   if (q.get('meta')) return meta();
+  if (q.get('sofifa')) return POST(new Request(req.url, { method: 'POST', body: JSON.stringify({ sofifa: q.get('sofifa')!.split(',').map(Number).filter(Boolean) }) }));
   const list = (k: string) => (q.get(k) ?? '').split(',').map(Number).filter(Boolean);
   return lookup(list('ids'), list('teams'));
 }
@@ -64,7 +71,7 @@ const MONTH = WEEK * 4;
 const sofifaCache = new Map<number, { name: string | null; at: number }>();
 async function sofifaName(id: number): Promise<string | null> {
   const c = sofifaCache.get(id);
-  if (c && Date.now() - c.at < (c.name ? MONTH : 86400) * 1000) return c.name;
+  if (c && Date.now() - c.at < (c.name ? MONTH : 3600) * 1000) return c.name;
   let name: string | null = null;
   try {
     const res = await fetch(`https://sofifa.com/player/${id}`, {
@@ -76,10 +83,10 @@ async function sofifaName(id: number): Promise<string | null> {
   sofifaCache.set(id, { name, at: Date.now() });
   return name;
 }
+const SOFIFA_BATCH = 20;
 async function fillFromSofifa(ids: number[], players: EaLookup['players']) {
-  const todo = ids.slice(0, 150);
-  for (let i = 0; i < todo.length; i += 15) {
-    await Promise.all(todo.slice(i, i + 15).map(async (id) => {
+  for (let i = 0; i < ids.length; i += 5) {
+    await Promise.all(ids.slice(i, i + 5).map(async (id) => {
       const n = await sofifaName(id);
       if (n) players[id] = { name: n, short: n.split(' ').at(-1)!, avatar: '', src: 'sofifa' };
     }));
@@ -95,11 +102,11 @@ async function lookup(ids: number[], teamIds: number[], noFallback = new Set<num
       const it = map.get(id);
       if (it) players[id] = { name: `${it.firstName} ${it.lastName}`.trim(), short: it.commonName || it.lastName || it.firstName, avatar: it.avatarUrl };
     }
-    await fillFromSofifa(ids.filter((id) => !players[id] && !noFallback.has(id)), players);
+    const missing = ids.filter((id) => !players[id] && !noFallback.has(id));
     const want = new Set(teamIds);
     const crests: EaLookup['crests'] = {};
     for (const it of map.values()) if (it.team && want.has(it.team.id)) crests[it.team.id] = it.team.imageUrl;
-    return NextResponse.json({ players, crests, available: true } satisfies EaLookup);
+    return NextResponse.json({ players, crests, available: true, missing } satisfies EaLookup);
   } catch (e) {
     console.error('Falha ao ler a API da EA:', e);
     return NextResponse.json({ players: {}, crests: {}, available: false } satisfies EaLookup);
