@@ -405,3 +405,58 @@ export function ScoutsDrawer({ s }: P) {
     { key: 'e', label: 'Experiência', sort: (x) => x.experience, render: (x) => <span className="text-accent">{st(x.experience)}</span> },
     { key: 'j', label: 'Julgamento', sort: (x) => x.knowledge, render: (x) => <span className="text-accent">{st(x.knowledge)}</span> }]} />;
 }
+
+// ───────────────────────── Troféus ─────────────────────────
+/**
+ * Gaveta "Troféus" (Silverware do CM Tracker): cada competição com a situação, o líder ou campeão
+ * e a posição do seu clube. "Mundo" mostra todas as tabelas que o save traz.
+ */
+export function SilverwareDrawer({ s, ea }: P) {
+  const [scope, setScope] = useState<'mine' | 'world'>('mine');
+  const [q, setQ] = useState('');
+  const rows = useMemo(() => {
+    const byComp = new Map<string, Match[]>();
+    for (const m of s.matches) byComp.set(m.competition, [...(byComp.get(m.competition) ?? []), m]);
+    type Row = { key: string; name: string; kind: string; mine: boolean; state: string; leader: { id: number; name: string; pts: number } | null; done: boolean; pos: number | null; teams: number };
+    const out: Row[] = s.standings.filter((t) => t.rows.length > 1).map((t) => {
+      const ms = byComp.get(t.title) ?? [];
+      const played = t.rows.some((r) => r.played > 0);
+      // Liga encerrada: todos os times jogaram o mesmo número de jogos e não sobra jogo marcado.
+      const done = played && ms.length > 0 && ms.every((m) => m.played);
+      const pos = t.rows.findIndex((r) => r.teamId === s.club.id);
+      const top = t.rows[0]!;
+      const row: Row = { key: `t${t.stageId}`, name: t.title, kind: t.isLeague ? 'Liga' : 'Grupo/fase', mine: pos >= 0 || ms.some((m) => m.homeId === s.club.id || m.awayId === s.club.id),
+        state: !played ? 'Não começou' : done ? 'Encerrada' : 'Em andamento', leader: { id: top.teamId, name: top.name, pts: top.points }, done, pos: pos >= 0 ? pos + 1 : null, teams: t.rows.length };
+      return row;
+    });
+    // Copas sem tabela (mata-mata): situação pelos jogos do clube.
+    for (const [name, ms] of byComp) {
+      if (s.standings.some((t) => t.title === name)) continue;
+      const mine = ms.filter((m) => m.homeId === s.club.id || m.awayId === s.club.id).sort((a, b) => a.date - b.date);
+      if (!mine.length) continue;
+      const next = mine.find((m) => !m.played), last = mine.filter((m) => m.played).at(-1);
+      let state = next ? 'Ainda vivo' : 'Aguardando sorteio';
+      if (!next && last) { const [f, a] = last.homeId === s.club.id ? [last.homeGoals ?? 0, last.awayGoals ?? 0] : [last.awayGoals ?? 0, last.homeGoals ?? 0]; if (f < a) state = 'Eliminado'; }
+      out.push({ key: `c${name}`, name, kind: 'Copa', mine: true, state, leader: null, done: false, pos: null, teams: 0 });
+    }
+    return out;
+  }, [s]);
+  const list = rows.filter((r) => (scope === 'world' || r.mine) && (!q || norm(r.name).includes(norm(q))));
+  const titles = rows.filter((r) => r.done && r.leader?.id === s.club.id);
+  return (
+    <div className="space-y-3">
+      <Kpis items={[{ value: rows.filter((r) => r.mine).length, label: 'Suas competições' }, { value: rows.filter((r) => r.mine && !r.done && r.state !== 'Eliminado').length, label: 'Ainda disputando' }, { value: titles.length, label: 'Títulos nesta temporada' }, { value: s.club.leagueTitles, label: 'Ligas do clube' }, { value: s.club.domesticCups, label: 'Copas do clube' }]} />
+      <div className="flex flex-wrap items-center gap-3">
+        <Seg value={scope} onChange={setScope} options={[{ id: 'mine', label: 'Suas competições' }, { id: 'world', label: `Mundo (${rows.length})` }]} />
+        <Search value={q} onChange={setQ} placeholder="Buscar competição" />
+      </div>
+      <SortTable rows={list} rowKey={(r) => r.key} initial={{ key: 'mine', dir: -1 }} highlight={(r) => r.mine && scope === 'world'} cols={[
+        { key: 'n', label: 'Competição', sort: (r) => r.name, render: (r) => <span><span className="block">{r.name}</span><span className="text-[11px] text-muted">{r.kind}{r.teams ? ` · ${r.teams} times` : ''}</span></span> },
+        { key: 'st', label: 'Situação', sort: (r) => r.state, render: (r) => <span className={r.state === 'Eliminado' ? 'text-bad' : r.state === 'Encerrada' ? 'text-muted' : 'text-link'}>{r.state}</span> },
+        { key: 'l', label: 'Líder / campeão', sort: (r) => r.leader?.name ?? '', render: (r) => (r.leader ? <span className="flex items-center gap-1.5">{r.done && '🏆'}<Club id={r.leader.id} name={r.leader.name} ea={ea} /><span className="text-[11px] text-muted">{r.leader.pts} pts</span></span> : <span className="text-muted">—</span>) },
+        { key: 'mine', label: 'Seu clube', align: 'r', sort: (r) => (r.mine ? 1000 - (r.pos ?? 0) : 0), render: (r) => (r.pos ? `${r.pos}º` : r.mine ? '✓' : '—') },
+      ]} />
+      <p className="text-[11px] text-muted">Campeão de copa em mata-mata aparece na aba Troféus, depois de enviar um save com a final jogada.</p>
+    </div>
+  );
+}

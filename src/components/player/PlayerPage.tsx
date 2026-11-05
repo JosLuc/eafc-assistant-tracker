@@ -9,12 +9,13 @@ import { Ovr, Pic, dateBr, money, ratingColor } from '../home/ui';
 import { useEaMeta, type Ea } from '../home/names';
 import { abilityKeys } from '@/lib/career/playstyles';
 import { playerRoles } from '@/lib/career/roles';
+import { careerStats, ovrHistory, projectOvr, totalStats } from '@/lib/career/playerCareer';
 
 /**
  * Página do jogador (abre ao clicar num nome): ficha, radar, nota por posição, atributos,
  * temporada (forma, OVR ao vivo, condição) e números por competição. Esc ou "← Voltar" fecham.
  */
-type P = { s: CareerSnapshot; ea: Ea; db: PlayerDb | null; id: number; onBack: () => void };
+type P = { s: CareerSnapshot; ea: Ea; db: PlayerDb | null; id: number; onBack: () => void; snaps?: CareerSnapshot[] };
 
 const GROUPS: { label: string; keys: string[] }[] = [
   { label: 'Ataque', keys: ['crossing', 'finishing', 'headingaccuracy', 'shortpassing', 'volleys'] },
@@ -49,7 +50,31 @@ function Tile({ title, children, className = '' }: { title: string; children: Re
   return <section className={`rounded-[10px] bg-card px-[18px] pb-[18px] pt-4 ${className}`}><h3 className="title mb-3 text-[15px]">{title}</h3>{children}</section>;
 }
 
-export function PlayerPage({ s, ea, db, id, onBack }: P) {
+/** Gráfico do OVR por idade: linha tracejada = projeção; pontos = OVR em cada save enviado. */
+function Growth({ proj, hist, pot }: { proj: { age: number; ovr: number }[]; hist: { age: number; ovr: number; season: string }[]; pot: number }) {
+  const W = 520, H = 180, L = 30, R = 10, T = 12, B = 24;
+  const ages = [...proj.map((x) => x.age), ...hist.map((x) => x.age)];
+  const a0 = Math.min(...ages), a1 = Math.max(...ages);
+  const vals = [...proj.map((x) => x.ovr), ...hist.map((x) => x.ovr), pot];
+  const v0 = Math.floor((Math.min(...vals) - 3) / 5) * 5, v1 = Math.min(99, Math.ceil((Math.max(...vals) + 2) / 5) * 5);
+  const x = (a: number) => L + ((a - a0) / Math.max(1, a1 - a0)) * (W - L - R);
+  const y = (v: number) => T + (1 - (v - v0) / Math.max(1, v1 - v0)) * (H - T - B);
+  const peak = proj.reduce((b, p) => (p.ovr > b.ovr ? p : b), proj[0]!);
+  const ticks = []; for (let v = v0; v <= v1; v += 5) ticks.push(v);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Projeção do overall por idade">
+      {ticks.map((v) => <g key={v}><line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke="#2a2a2a" /><text x={L - 6} y={y(v) + 3} textAnchor="end" fontSize="10" fill="#8a8a8a">{v}</text></g>)}
+      {proj.filter((p) => p.age % 2 === 0 || p.age === a0).map((p) => <text key={p.age} x={x(p.age)} y={H - 6} textAnchor="middle" fontSize="10" fill="#8a8a8a">{p.age}</text>)}
+      <line x1={L} x2={W - R} y1={y(pot)} y2={y(pot)} stroke="#5865f2" strokeDasharray="2 4" opacity=".6" />
+      <polyline points={proj.map((p) => `${x(p.age)},${y(p.ovr)}`).join(' ')} fill="none" stroke="#a3a3a3" strokeWidth="2" strokeDasharray="6 4" />
+      <circle cx={x(peak.age)} cy={y(peak.ovr)} r="4" fill="#5865f2" />
+      <text x={x(peak.age)} y={y(peak.ovr) - 8} textAnchor="middle" fontSize="11" fontWeight="700" fill="#fff">pico {peak.ovr} aos {peak.age}</text>
+      {hist.map((p, i) => <circle key={i} cx={x(p.age)} cy={y(p.ovr)} r="4" fill={ratingColor(p.ovr)}><title>{`${p.season}: OVR ${p.ovr} aos ${p.age}`}</title></circle>)}
+    </svg>
+  );
+}
+
+export function PlayerPage({ s, ea, db, id, onBack, snaps }: P) {
   const meta = useEaMeta();
   useEffect(() => {
     // Captura antes da gaveta: Esc fecha só a página do jogador e volta para a gaveta aberta.
@@ -81,6 +106,9 @@ export function PlayerPage({ s, ea, db, id, onBack }: P) {
   const value = sq?.value ?? youth?.value ?? (r && r.value >= 0 ? r.value : undefined);
   const est = value == null && r ? estimateValue(r.overallrating, r.potential, r.age) : undefined;
   const stats = (s.stats ?? []).map((c) => ({ comp: c.competition, x: c.players.find((y) => y.playerId === id) })).filter((c) => c.x);
+  const all = snaps?.length ? snaps : [s];
+  const career = careerStats(all, id), tot = totalStats(career);
+  const hist = ovrHistory(all, id);
   const born = r ? toYmd(fromGameDays(r.birthdate)) : undefined;
   const joined = r && r.playerjointeamdate > 0 ? toYmd(fromGameDays(r.playerjointeamdate)) : undefined;
 
@@ -216,6 +244,28 @@ export function PlayerPage({ s, ea, db, id, onBack }: P) {
           {sq?.lastSeason?.length ? (
             <p className="mt-3 text-[12px] text-muted">Temporada passada: {sq.lastSeason.map((c) => `${s.lastSeasonComps[c.competitionId] ?? 'Competição'} ${c.apps} J · ${c.goals} G · ${c.assists} A`).join(' | ')}</p>
           ) : null}
+        </Tile>
+      )}
+
+      {ovr > 0 && age != null && (
+        <Tile title="Crescimento">
+          <p className="mb-2 text-[12px] text-muted">Projeção do overall por idade (linha tracejada), com o OVR de cada save enviado (pontos) e o potencial (linha azul). Estimativa: treino, minutos e forma mudam o ritmo real.</p>
+          <Growth proj={projectOvr(ovr, Math.max(pot, ovr), age)} hist={hist} pot={Math.max(pot, ovr)} />
+        </Tile>
+      )}
+
+      {career.length > 0 && (
+        <Tile title="Estatísticas da carreira">
+          <div className="overflow-x-auto rounded-lg border border-line">
+            <table className="w-full text-[13px] tabular-nums">
+              <thead className="bg-[#191919] text-[11px] uppercase text-muted"><tr>{['Temporada', 'Competição', 'Jogos', 'Gols', 'Assist.', 'Sem sofrer', 'Amarelos', 'Minutos', 'Nota'].map((h, i) => <th key={h} className={`px-3 py-2 ${i > 1 ? 'text-right' : 'text-left'}`}>{h}</th>)}</tr></thead>
+              <tbody>
+                {career.map((x, i) => <tr key={i} className="border-t border-line"><td className="px-3 py-1.5">{x.season}</td><td className="px-3">{x.competition}</td><td className="px-3 text-right">{x.apps}</td><td className="px-3 text-right">{x.goals}</td><td className="px-3 text-right">{x.assists}</td><td className="px-3 text-right">{x.cleanSheets}</td><td className="px-3 text-right">{x.yellows}</td><td className="px-3 text-right">{x.minutes ?? '—'}</td><td className="px-3 text-right">{x.avgRating ? x.avgRating.toFixed(2).replace('.', ',') : '—'}</td></tr>)}
+                <tr className="border-t border-line bg-[#191919] font-semibold"><td className="px-3 py-1.5" colSpan={2}>Total</td><td className="px-3 text-right">{tot.apps}</td><td className="px-3 text-right">{tot.goals}</td><td className="px-3 text-right">{tot.assists}</td><td className="px-3 text-right">{tot.cleanSheets}</td><td className="px-3 text-right">{tot.yellows}</td><td className="px-3 text-right">{tot.minutes || '—'}</td><td className="px-3 text-right">{tot.avgRating ? tot.avgRating.toFixed(2).replace('.', ',') : '—'}</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-[11px] text-muted">Soma o último save de cada temporada enviada. A temporada anterior à primeira enviada vem do resumo do jogo, sem minutos e nota.</p>
         </Tile>
       )}
     </div>
