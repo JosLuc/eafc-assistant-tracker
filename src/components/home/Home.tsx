@@ -115,7 +115,7 @@ export function Home() {
     finally { setBusy(false); }
   }
 
-  const ids = useMemo(() => (s ? [...new Set([...s.squad.map((p) => p.id), ...s.transfers.map((t) => t.playerId), ...s.youth.map((y) => y.id), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.playerId)), ...(s.worldTransfers ?? []).map((t) => t.playerId), ...(s.tactic?.cornerSupport ?? []), ...(s.loans ?? []).map((l) => l.playerId), ...newsPlayers(s), ...(playerId != null ? [playerId] : [])])] : []), [s, playerId]);
+  const ids = useMemo(() => (s ? [...new Set([...(playerId != null ? [playerId] : []), ...s.squad.map((p) => p.id), ...(s.loans ?? []).map((l) => l.playerId), ...s.youth.map((y) => y.id), ...s.transfers.map((t) => t.playerId), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.playerId)), ...(s.worldTransfers ?? []).map((t) => t.playerId), ...(s.tactic?.cornerSupport ?? []), ...(s.loans ?? []).map((l) => l.playerId), ...newsPlayers(s), ...(playerId != null ? [playerId] : [])])] : []), [s, playerId]);
   const teamIds = useMemo(() => (s ? [...new Set([s.club.id, ...s.standings.flatMap((t) => t.rows.map((r) => r.teamId)),
     ...s.matches.flatMap((m) => [m.homeId, m.awayId]).filter((x): x is number => x != null),
     ...s.transfers.flatMap((t) => [t.fromId, t.toId]), ...(s.stats ?? []).flatMap((c) => c.players.map((x) => x.teamId)), ...(s.worldTransfers ?? []).flatMap((t) => [t.fromId, t.toId]), s.club.rivalId, ...(s.loans ?? []).map((l) => l.clubId), ...(s.preseason ?? []).flatMap((t) => t.teams.map((x) => x.id)), ...(s.awardsRace ?? []).map((x) => x.teamId), ...(s.leagueRivals ?? []).map((x) => x.teamId), ...[...(s.news ?? []), ...(s.emails ?? [])].flatMap((x) => (x.teams ?? []).map((t) => t.id))])] : []), [s]);

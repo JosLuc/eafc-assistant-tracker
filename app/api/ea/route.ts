@@ -77,9 +77,9 @@ async function sofifaName(id: number): Promise<string | null> {
   return name;
 }
 async function fillFromSofifa(ids: number[], players: EaLookup['players']) {
-  const todo = ids.slice(0, 60);
-  for (let i = 0; i < todo.length; i += 8) {
-    await Promise.all(todo.slice(i, i + 8).map(async (id) => {
+  const todo = ids.slice(0, 150);
+  for (let i = 0; i < todo.length; i += 15) {
+    await Promise.all(todo.slice(i, i + 15).map(async (id) => {
       const n = await sofifaName(id);
       if (n) players[id] = { name: n, short: n.split(' ').at(-1)!, avatar: '', src: 'sofifa' };
     }));
