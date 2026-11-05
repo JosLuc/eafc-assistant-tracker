@@ -9,6 +9,7 @@ import { Ovr, Pic, money } from '../home/ui';
 import { useHub } from '../drawer/kit';
 import { ClubsView, ManagersView } from './ScoutOthers';
 import { ROLES } from '@/lib/career/roles';
+import { fastScoutContext, parseFastScout, type FastScoutOptions } from '@/lib/career/fastScout';
 
 /**
  * Aba Scout: busca em todos os jogadores do save (≈22 mil) com filtros por faixa, posições com Ou/E,
@@ -56,6 +57,9 @@ function PlayersScout({ s, db }: P) {
   const [colMenu, setColMenu] = useState(false);
   const [savedMenu, setSavedMenu] = useState(false);
   const [goto, setGoto] = useState('');
+  const [ask, setAsk] = useState('');
+  const [asking, setAsking] = useState(false);
+  const [askMsg, setAskMsg] = useState<{ ok: boolean; text: string }>();
 
   useEffect(() => { setCols(load('fc27:scout:cols', DEFAULT_COLS)); setPer(load('fc27:scout:per', 25)); setSaved(load('fc27:scout:saved', [])); }, []);
 
@@ -129,6 +133,24 @@ function PlayersScout({ s, db }: P) {
   const nations: [number, string][] = Object.entries(meta?.nations ?? {}).filter(([id]) => usedNations.has(Number(id))).map(([id, n]): [number, string] => [Number(id), n.label]).sort((a, b) => a[1].localeCompare(b[1]));
   // PlayStyle+ por último, depois dos normais, cada grupo em ordem alfabética.
   const styleOpts = Object.entries(meta?.abilities ?? {}).sort((a, b) => Number(a[1].plus) - Number(b[1].plus) || a[1].label.localeCompare(b[1].label));
+  // Scout rápida: a IA lê a descrição e devolve os filtros (só as opções que existem neste save).
+  const fastScout = async () => {
+    const text = ask.trim();
+    if (!text || asking) return;
+    const opts: FastScoutOptions = { leagues: leagues.map(([id, n]): [number, string] => [Number(id), n]), teams: Object.entries(db.teams).map(([id, n]): [number, string] => [Number(id), n]), nations, styles: styleOpts.map(([k, v]): [string, string] => [k, v.label]) };
+    setAsking(true); setAskMsg(undefined);
+    try {
+      const r = await fetch('/api/ai', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'scout', context: fastScoutContext(opts), messages: [{ role: 'user', content: text }] }) });
+      const j = (await r.json()) as { text?: string; error?: string };
+      if (!j.text) throw new Error(j.error === 'sem-chaves' ? 'A IA não está configurada (faltam as chaves na Vercel).' : j.error ?? 'A IA não respondeu. Tente de novo.');
+      const res = parseFastScout(j.text, opts);
+      setF(res.filter); setPage(0);
+      if (res.sort && C.some((c) => c.key === res.sort!.key)) setSort(res.sort);
+      setAskMsg({ ok: true, text: `${res.note ?? 'Filtros aplicados.'}${res.ignored.length ? ` Não achei no save: ${res.ignored.join(', ')}.` : ''}` });
+    } catch (e) { setAskMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }); }
+    finally { setAsking(false); }
+  };
+
   const chips: { label: string; clear: () => void }[] = [];
   for (const [k, [a, b]] of Object.entries(f.ranges)) {
     if (a == null && b == null) continue;
@@ -193,6 +215,14 @@ function PlayersScout({ s, db }: P) {
       {/* Painel de filtros */}
       <aside className="rounded-[10px] bg-card p-4 lg:sticky lg:top-16 lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto">
         <h2 className="title mb-3 text-[15px]">Buscar jogadores</h2>
+        <div className="mb-3 rounded-lg border border-accent/50 bg-accent/10 p-3">
+          <div className="mb-1.5 flex items-center justify-between"><span className="title text-[13px]">✦ Scout rápida · IA</span>{asking && <span className="text-[11px] text-muted">pensando…</span>}</div>
+          <textarea value={ask} onChange={(e) => setAsk(e.target.value)} rows={3} placeholder="Descreva o jogador. Ex.: lateral esquerdo até 22 anos, potencial 84+, até 15 mi"
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void fastScout(); } }}
+            className="w-full resize-none rounded-md border border-line bg-[#191919] px-2.5 py-2 text-[13px] outline-none placeholder:text-[#666] focus:border-accent" />
+          <button onClick={() => void fastScout()} disabled={asking || !ask.trim()} className="mt-2 w-full rounded-md bg-accent px-3 py-1.5 text-[13px] font-semibold text-white disabled:opacity-50">{asking ? 'Montando filtros…' : 'Montar busca'}</button>
+          {askMsg && <p className={`mt-2 text-[12px] ${askMsg.ok ? 'text-muted' : 'text-bad'}`}>{askMsg.text}</p>}
+        </div>
         <div className="relative">
           <button onClick={() => setSavedMenu((v) => !v)} className="flex w-full items-center gap-2 rounded-md border border-line px-3 py-2 text-[13px] hover:bg-[#232323]">☆ Filtros salvos <span className="ml-auto text-faint">{saved.length}</span></button>
           {savedMenu && (

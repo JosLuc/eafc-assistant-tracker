@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { FAST_SCOUT_SYSTEM } from '@/lib/career/fastScout';
 
 /**
  * Assistente do modo carreira. O Gemini responde primeiro; se falhar ou bater o limite, o Groq assume.
@@ -10,7 +11,8 @@ const GEMINI_TIMEOUT = 45_000, GROQ_TIMEOUT = 40_000;
 const GROQ_CONTEXT = 10_000;
 
 export interface AiMessage { role: 'user' | 'assistant'; content: string; images?: string[] }
-export interface AiRequest { messages: AiMessage[]; context: string }
+/** mode "scout": a Scout rápida, que pede só um JSON de filtros. */
+export interface AiRequest { messages: AiMessage[]; context: string; mode?: 'scout' }
 export interface AiResponse { text?: string; provider?: 'gemini' | 'groq'; error?: string; truncated?: boolean }
 /** Marca interna de resposta cortada pelo limite de tamanho; a rota tira e devolve truncated. */
 const CUT = '\u0000CUT';
@@ -87,6 +89,8 @@ async function firstOk(models: string[], call: (model: string) => Promise<string
   throw new Error(errs.join(' | ') || 'nenhum modelo');
 }
 
+const systemFor = (req: AiRequest) => (req.mode === 'scout' ? `${FAST_SCOUT_SYSTEM}\n\nOPÇÕES DO SAVE:\n${req.context}` : `${SYSTEM}\n\nDADOS DO SAVE:\n${req.context}`);
+
 const splitDataUrl = (u: string) => { const m = /^data:([^;]+);base64,(.*)$/.exec(u); return m ? { mime: m[1]!, data: m[2]! } : null; };
 
 async function gemini(key: string, req: AiRequest, model: string, thinking = true, retry = true): Promise<string> {
@@ -96,7 +100,7 @@ async function gemini(key: string, req: AiRequest, model: string, thinking = tru
   }));
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': key }, signal: AbortSignal.timeout(GEMINI_TIMEOUT),
-    body: JSON.stringify({ systemInstruction: { parts: [{ text: `${SYSTEM}\n\nDADOS DO SAVE:\n${req.context}` }] }, contents, generationConfig: { temperature: 0.6, maxOutputTokens: 8192, ...(thinking ? { thinkingConfig: { thinkingLevel: 'low' } } : {}) } }),
+    body: JSON.stringify({ systemInstruction: { parts: [{ text: systemFor(req) }] }, contents, generationConfig: { temperature: 0.6, maxOutputTokens: 8192, ...(thinking ? { thinkingConfig: { thinkingLevel: 'low' } } : {}) } }),
   });
   // Modelos que não aceitam o nível de raciocínio: tenta de novo sem ele.
   if (res.status === 400 && thinking) return gemini(key, req, model, false);
@@ -111,7 +115,7 @@ async function gemini(key: string, req: AiRequest, model: string, thinking = tru
 
 async function groq(key: string, req: AiRequest, model: string): Promise<string> {
   const messages = [
-    { role: 'system', content: `${SYSTEM}\n\nDADOS DO SAVE:\n${req.context}` },
+    { role: 'system', content: systemFor(req) },
     ...req.messages.map((m) => (m.images?.length
       ? { role: m.role, content: [{ type: 'text', text: m.content }, ...m.images.map((url) => ({ type: 'image_url', image_url: { url } }))] }
       : { role: m.role, content: m.content })),
@@ -137,7 +141,7 @@ export async function POST(r: Request) {
   const req = (await r.json()) as AiRequest;
   if (!Array.isArray(req.messages) || !req.messages.length) return NextResponse.json<AiResponse>({ error: 'Mensagem vazia.' }, { status: 400 });
   // Limita o tamanho para não estourar o plano gratuito: últimas 12 mensagens e contexto de até ~60 mil caracteres.
-  const body: AiRequest = { messages: req.messages.slice(-12), context: String(req.context ?? '').slice(0, 60_000) };
+  const body: AiRequest = { messages: req.messages.slice(-12), context: String(req.context ?? '').slice(0, 60_000), mode: req.mode === 'scout' ? 'scout' : undefined };
   const gk = process.env.GEMINI_API_KEY, qk = process.env.GROQ_API_KEY;
   if (!gk && !qk) return NextResponse.json<AiResponse>({ error: 'sem-chaves' }, { status: 503 });
   const errors: string[] = [];
@@ -150,6 +154,7 @@ export async function POST(r: Request) {
       const gm = await groqModels(qk);
       // O plano gratuito do Groq limita o tamanho de cada pedido (erro 413): manda um resumo menor e menos histórico.
       const lite: AiRequest = {
+        mode: body.mode,
         context: body.context.slice(0, GROQ_CONTEXT),
         messages: body.messages.slice(-4).map((m) => (m.role === 'assistant' ? { ...m, content: m.content.slice(0, 1200) } : m)),
       };
