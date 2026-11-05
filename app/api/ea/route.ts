@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { parseSofifaTitle } from '../../../src/lib/ea/sofifa';
 
 /**
  * Nomes e fotos dos jogadores pela API pública de ratings da EA (o save não tem nomes).
@@ -17,7 +18,7 @@ interface EaItem {
 }
 /** Nomes que o save não tem: PlayStyles (id = "trait1_64", o bit no save) e países (id do save). */
 export interface EaMeta { abilities: Record<string, { label: string; desc: string; plus: boolean }>; nations: Record<number, { label: string; flag: string }>; available: boolean }
-export interface EaPlayer { name: string; short: string; avatar: string }
+export interface EaPlayer { name: string; short: string; avatar: string; /** 'sofifa' = nome achado no SoFIFA (fora da base da EA). */ src?: 'sofifa' }
 export interface EaLookup { players: Record<number, EaPlayer>; crests: Record<number, string>; available: boolean }
 
 async function page(offset: number): Promise<{ items: EaItem[]; totalItems: number }> {
@@ -40,8 +41,8 @@ async function loadIndex() {
 }
 
 export async function POST(req: Request) {
-  const { ids = [], teamIds = [] } = (await req.json()) as { ids?: number[]; teamIds?: number[] };
-  return lookup(ids, teamIds);
+  const { ids = [], teamIds = [], noFallback = [] } = (await req.json()) as { ids?: number[]; teamIds?: number[]; noFallback?: number[] };
+  return lookup(ids, teamIds, new Set(noFallback));
 }
 
 /** Diagnóstico pelo navegador: /api/ea?ids=158023,231747&teams=13 */
@@ -54,7 +55,38 @@ export async function GET(req: Request) {
   return lookup(list('ids'), list('teams'));
 }
 
-async function lookup(ids: number[], teamIds: number[]) {
+/**
+ * Reserva para quem não está na base da EA (≈1.500 jogadores de OVR baixo, como os emprestados da base).
+ * O save só guarda o id do nome, e o texto fica nos arquivos do jogo instalado. O SoFIFA usa o mesmo
+ * playerid da EA e põe o nome no título ("Leo Shahar - FC27 | SoFIFA"). Cache de 30 dias por jogador.
+ */
+const MONTH = WEEK * 4;
+const sofifaCache = new Map<number, { name: string | null; at: number }>();
+async function sofifaName(id: number): Promise<string | null> {
+  const c = sofifaCache.get(id);
+  if (c && Date.now() - c.at < (c.name ? MONTH : 86400) * 1000) return c.name;
+  let name: string | null = null;
+  try {
+    const res = await fetch(`https://sofifa.com/player/${id}`, {
+      next: { revalidate: MONTH }, signal: AbortSignal.timeout(6000),
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; eafc-assistant-tracker)', 'Accept-Language': 'en' },
+    });
+    if (res.ok) name = parseSofifaTitle(await res.text());
+  } catch { /* fora do ar ou bloqueado: fica com o #id */ }
+  sofifaCache.set(id, { name, at: Date.now() });
+  return name;
+}
+async function fillFromSofifa(ids: number[], players: EaLookup['players']) {
+  const todo = ids.slice(0, 60);
+  for (let i = 0; i < todo.length; i += 8) {
+    await Promise.all(todo.slice(i, i + 8).map(async (id) => {
+      const n = await sofifaName(id);
+      if (n) players[id] = { name: n, short: n.split(' ').at(-1)!, avatar: '', src: 'sofifa' };
+    }));
+  }
+}
+
+async function lookup(ids: number[], teamIds: number[], noFallback = new Set<number>()) {
   try {
     index ??= loadIndex().catch((e) => { index = null; throw e; });
     const map = await index;
@@ -63,6 +95,7 @@ async function lookup(ids: number[], teamIds: number[]) {
       const it = map.get(id);
       if (it) players[id] = { name: `${it.firstName} ${it.lastName}`.trim(), short: it.commonName || it.lastName || it.firstName, avatar: it.avatarUrl };
     }
+    await fillFromSofifa(ids.filter((id) => !players[id] && !noFallback.has(id)), players);
     const want = new Set(teamIds);
     const crests: EaLookup['crests'] = {};
     for (const it of map.values()) if (it.team && want.has(it.team.id)) crests[it.team.id] = it.team.imageUrl;

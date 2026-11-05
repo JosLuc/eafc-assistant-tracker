@@ -2,21 +2,25 @@
 import { useEffect, useState } from 'react';
 import type { EaLookup, EaMeta, EaPlayer } from '../../../app/api/ea/route';
 
-/** Busca nomes, fotos e escudos na API da EA (via nosso servidor). Sem resposta, mostra "Jogador #id". */
+/**
+ * Busca nomes, fotos e escudos na API da EA (via nosso servidor). Quem não está na EA vem do SoFIFA.
+ * Ordem: EA > nome guardado no save (base/regens) > SoFIFA > "Jogador #id".
+ */
 export function useEa(ids: number[], teamIds: number[], saveNames: Record<number, string> = {}) {
   const [data, setData] = useState<EaLookup | null>(null);
   const key = ids.join(',') + '|' + teamIds.join(',');
   useEffect(() => {
     let alive = true;
-    fetch('/api/ea', { method: 'POST', body: JSON.stringify({ ids, teamIds }) })
+    fetch('/api/ea', { method: 'POST', body: JSON.stringify({ ids, teamIds, noFallback: ids.filter((id) => saveNames[id]) }) })
       .then((r) => r.json()).then((d) => alive && setData(d)).catch(() => alive && setData({ players: {}, crests: {}, available: false }));
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   const player = (id: number): EaPlayer => {
     const hit = data?.players[id];
-    if (hit) return hit;
+    if (hit && !hit.src) return hit;
     const n = saveNames[id];
+    if (!n && hit) return hit;
     // Jogadores gerados pelo jogo (base, regens) não estão na base da EA, mas o save guarda o nome.
     return n ? { name: n, short: n.split(' ').at(-1)!, avatar: '' } : { name: `Jogador #${id}`, short: `#${id}`, avatar: '' };
   };
