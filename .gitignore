@@ -2,9 +2,11 @@ node_modules/
 dist/
 coverage/
 .env*
+!.env.example
 # saves do jogo nunca vão para o repositório
 saves/
 *.sav
 CmMgrC*
 .next/
+.vercel/
 *.tsbuildinfo
